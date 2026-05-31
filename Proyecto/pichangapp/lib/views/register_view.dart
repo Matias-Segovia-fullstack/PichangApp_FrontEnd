@@ -90,6 +90,8 @@ class _RegisterViewState extends State<RegisterView> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                
+                // Campo RUT (Ya no calcula el género automáticamente)
                 TextField(
                   controller: _authController.rutController,
                   decoration: const InputDecoration(
@@ -97,40 +99,10 @@ class _RegisterViewState extends State<RegisterView> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.badge),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _authController.procesarRut(value);
-                    });
-                  },
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors
-                        .grey[200], // Fondo gris para denotar que está bloqueado
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.grey),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.wc, color: Colors.grey),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Género: ${_authController.generoCalculado}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
+                
+                // Botón de Registro
                 ElevatedButton(
                   onPressed: () async {
                     bool success = await _authController.registrar();
@@ -148,7 +120,7 @@ class _RegisterViewState extends State<RegisterView> {
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Error al crear la cuenta.'),
+                          content: Text('Error al crear la cuenta. Revisa los datos.'),
                         ),
                       );
                     }

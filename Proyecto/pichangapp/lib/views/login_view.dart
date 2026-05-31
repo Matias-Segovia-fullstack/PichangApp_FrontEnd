@@ -41,9 +41,9 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 40),
                 TextField(
-                  controller: _authController.emailController,
+                  controller: _authController.usernameController,
                   decoration: const InputDecoration(
-                    labelText: 'Correo Electrónico',
+                    labelText: 'Username',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -59,10 +59,10 @@ class _LoginViewState extends State<LoginView> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () async {
-                    bool success = await _authController.login();
+                    String? token = await _authController.login();
                     if (!context.mounted) return;
                     
-                    if (success) {
+                    if (token != null) {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
@@ -72,7 +72,7 @@ class _LoginViewState extends State<LoginView> {
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Por favor, rellena los campos'),
+                          content: Text('Usuario o contraseña incorrecta'),
                         ),
                       );
                     }
