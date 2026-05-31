@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../controllers/mock_data_controller.dart';
 import '../models/deportista.dart';
+import 'report_user_view.dart';
 
 class MatchSportView extends StatefulWidget {
   const MatchSportView({super.key});
@@ -9,25 +11,54 @@ class MatchSportView extends StatefulWidget {
 }
 
 class _MatchSportViewState extends State<MatchSportView> {
-  // 1. Datos simulados (Mock Data). En el futuro, esto se llenará mediante una petición HTTP GET.
-  final List<Deportista> _deportistas = [
-    Deportista(nombre: "Carlos", edad: 25, deporte: "Fútbol", altura: 1.78, nivel: "Amateur", fotoUrl: "https://via.placeholder.com/400x500.png?text=Carlos+Futbol"),
-    Deportista(nombre: "Andrea", edad: 22, deporte: "Tenis", altura: 1.65, nivel: "Intermedio", fotoUrl: "https://via.placeholder.com/400x500.png?text=Andrea+Tenis"),
-    Deportista(nombre: "Luis", edad: 28, deporte: "Básquetbol", altura: 1.90, nivel: "Avanzado", fotoUrl: "https://via.placeholder.com/400x500.png?text=Luis+Basquet"),
-  ];
-
+  final List<Deportista> _deportistas = MockDataController.deportistas();
   int _indiceActual = 0;
 
-  // 2. Lógica de transición
   void _siguientePerfil(String accion) {
-    // Imprimimos en consola para verificar que la lógica funciona antes del backend
-    print("$accion registrado para: ${_deportistas[_indiceActual].nombre}"); 
-    
+    final deportista = _deportistas[_indiceActual];
+
+    if (accion == 'Like' && deportista.nombre == 'Luis') {
+      _mostrarMatch(deportista);
+    }
+
     setState(() {
-      if (_indiceActual < _deportistas.length) {
-        _indiceActual++;
-      }
+      _indiceActual++;
     });
+  }
+
+  void _mostrarMatch(Deportista deportista) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¡Nuevo MatchSocial!'),
+        content: Text(
+          '${deportista.nombre} también quiere coordinar deporte contigo. En backend esto debería crear SalaChat por RabbitMQ.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Seguir descubriendo'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(String label, int value) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -35,86 +66,117 @@ class _MatchSportViewState extends State<MatchSportView> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: const Text('PichangApp', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'PichangApp',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
       ),
-      // Si ya no hay más perfiles, mostramos un mensaje final
       body: _indiceActual >= _deportistas.length
-          ? const Center(child: Text("No hay más deportistas en tu zona", style: TextStyle(fontSize: 18)))
+          ? const Center(
+              child: Text(
+                'No hay más deportistas en tu zona',
+                style: TextStyle(fontSize: 18),
+              ),
+            )
           : _construirTarjeta(_deportistas[_indiceActual]),
     );
   }
 
-  // 3. Extracción del Widget de la Tarjeta para mantener el código limpio
   Widget _construirTarjeta(Deportista deportista) {
     return Column(
       children: [
-        // Contenedor principal de la tarjeta
         Expanded(
           child: Card(
             margin: const EdgeInsets.all(20),
             elevation: 8,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Imagen
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                     child: Image.network(
                       deportista.fotoUrl,
                       fit: BoxFit.cover,
                     ),
                   ),
                 ),
-                // Datos del deportista
                 Padding(
-                  padding: const EdgeInsets.all(20.0),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '${deportista.nombre}, ${deportista.edad}', 
-                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${deportista.nombre}, ${deportista.edad}',
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.report, color: Colors.orange),
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReportUserView(
+                                  nombreReportado: deportista.nombre,
+                                  usuarioReportadoId: deportista.id,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
                       Text(
-                        '${deportista.deporte} - Nivel: ${deportista.nivel}', 
-                        style: TextStyle(fontSize: 18, color: Colors.grey[700])
+                        '${deportista.deporte} · ${deportista.posicion} · ${deportista.nivel}',
+                        style: TextStyle(fontSize: 18, color: Colors.grey[700]),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Altura: ${deportista.altura}m', 
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600])
+                        '${deportista.comuna} · ${deportista.distanciaKm} km · Altura ${deportista.altura}m',
+                        style: TextStyle(fontSize: 15, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _stat('Estamina', deportista.estamina),
+                          _stat('Velocidad', deportista.velocidad),
+                          _stat('Fuerza', deportista.fuerza),
+                        ],
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ),
         ),
-        // Fila de Botones (Row)
         Padding(
-          padding: const EdgeInsets.only(bottom: 40.0, top: 10.0),
+          padding: const EdgeInsets.only(bottom: 40, top: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              // Botón Dislike
               FloatingActionButton(
-                heroTag: "btn_dislike",
-                onPressed: () => _siguientePerfil("Dislike"),
+                heroTag: 'btn_dislike',
+                onPressed: () => _siguientePerfil('Dislike'),
                 backgroundColor: Colors.white,
                 child: const Icon(Icons.close, size: 35, color: Colors.red),
               ),
-              // Botón Like
               FloatingActionButton(
-                heroTag: "btn_like",
-                onPressed: () => _siguientePerfil("Like"),
+                heroTag: 'btn_like',
+                onPressed: () => _siguientePerfil('Like'),
                 backgroundColor: Colors.white,
                 child: const Icon(Icons.favorite, size: 35, color: Colors.green),
               ),
