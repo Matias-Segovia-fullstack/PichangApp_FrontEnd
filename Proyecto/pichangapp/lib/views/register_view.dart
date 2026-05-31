@@ -9,7 +9,6 @@ class RegisterView extends StatefulWidget {
 }
 
 class _RegisterViewState extends State<RegisterView> {
-  // Instanciamos el mismo controlador para manejar los inputs y la lógica del RUT
   final _authController = AuthController();
 
   @override
@@ -39,9 +38,31 @@ class _RegisterViewState extends State<RegisterView> {
                 TextField(
                   controller: _authController.nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Nombre Completo',
+                    labelText: 'Nombre',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.person),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Campo Apellido
+                TextField(
+                  controller: _authController.apellidoController,
+                  decoration: const InputDecoration(
+                    labelText: 'Apellido',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Campo Username
+                TextField(
+                  controller: _authController.usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre de usuario (Username)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.account_circle),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -69,8 +90,6 @@ class _RegisterViewState extends State<RegisterView> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // CAMPO RUT (El que gatilla el cálculo de género)
                 TextField(
                   controller: _authController.rutController,
                   decoration: const InputDecoration(
@@ -79,19 +98,20 @@ class _RegisterViewState extends State<RegisterView> {
                     prefixIcon: Icon(Icons.badge),
                   ),
                   onChanged: (value) {
-                    // Cada vez que el usuario escribe un carácter, ejecutamos la lógica
                     setState(() {
                       _authController.procesarRut(value);
                     });
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // CAMPO GÉNERO (Deshabilitado, se auto-rellena con el RUT)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200], // Fondo gris para denotar que está bloqueado
+                    color: Colors
+                        .grey[200], // Fondo gris para denotar que está bloqueado
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: Colors.grey),
                   ),
@@ -102,7 +122,7 @@ class _RegisterViewState extends State<RegisterView> {
                       Text(
                         'Género: ${_authController.generoCalculado}',
                         style: const TextStyle(
-                          fontSize: 16, 
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
                         ),
@@ -111,17 +131,31 @@ class _RegisterViewState extends State<RegisterView> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Botón Finalizar Registro
                 ElevatedButton(
-                  onPressed: () {
-                    // Aquí simulamos que el registro fue exitoso y volvemos al login
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cuenta creada con éxito. Ya puedes iniciar sesión.')),
-                    );
-                    Navigator.pop(context);
+                  onPressed: () async {
+                    bool success = await _authController.registrar();
+                    if (!context.mounted) return;
+                    
+                    if (success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Cuenta creada con éxito. Ya puedes iniciar sesión.',
+                          ),
+                        ),
+                      );
+                      Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Error al crear la cuenta.'),
+                        ),
+                      );
+                    }
                   },
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                   child: const Text('Registrarme'),
                 ),
               ],

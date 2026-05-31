@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
-import 'match_sport_view.dart';
 import 'register_view.dart';
 import 'home_tabs.dart';
 
@@ -34,55 +33,77 @@ class _LoginViewState extends State<LoginView> {
                 const Text(
                   'PichangApp',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue),
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
                 ),
                 const SizedBox(height: 40),
                 TextField(
                   controller: _authController.emailController,
-                  decoration: const InputDecoration(labelText: 'Correo Electrónico', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Correo Electrónico',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _authController.passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Contraseña', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Contraseña',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: () {
-                    if (_authController.simularLogin()) {
+                  onPressed: () async {
+                    bool success = await _authController.login();
+                    if (!context.mounted) return;
+                    
+                    if (success) {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const HomeTabs()),
+                        MaterialPageRoute(
+                          builder: (context) => const HomeTabs(),
+                        ),
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Por favor, rellena los campos')),
+                        const SnackBar(
+                          content: Text('Por favor, rellena los campos'),
+                        ),
                       );
                     }
                   },
                   child: const Text('Iniciar Sesión'),
                 ),
                 const SizedBox(height: 12),
-                
+
                 // BOTÓN DE GOOGLE (Orientado a futuro OAuth)
                 OutlinedButton.icon(
                   onPressed: () {
-                    // Simulación éxito Google Sign-In
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(builder: (context) => const HomeTabs()),
                     );
                   },
-                  icon: const Icon(Icons.g_mobiledata, size: 30, color: Colors.red),
+                  icon: const Icon(
+                    Icons.g_mobiledata,
+                    size: 30,
+                    color: Colors.red,
+                  ),
                   label: const Text('Continuar con Google'),
                 ),
-                
+
                 TextButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const RegisterView()),
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterView(),
+                      ),
                     );
                   },
                   child: const Text('¿No tienes cuenta? Regístrate aquí'),

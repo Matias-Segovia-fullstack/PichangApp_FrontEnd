@@ -20,8 +20,8 @@ class _MatchSportViewState extends State<MatchSportView> {
 
   // 2. Lógica de transición
   void _siguientePerfil(String accion) {
-    // Imprimimos en consola para verificar que la lógica funciona antes del backend
-    print("$accion registrado para: ${_deportistas[_indiceActual].nombre}"); 
+    // Imprimimos en consola usando debugPrint (buena práctica en Flutter)
+    debugPrint("$accion registrado para: ${_deportistas[_indiceActual].nombre}"); 
     
     setState(() {
       if (_indiceActual < _deportistas.length) {
