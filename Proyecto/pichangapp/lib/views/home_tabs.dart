@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'match_sport_view.dart';
 import 'chats_view.dart';
+import 'profile_view.dart';
 
 class HomeTabs extends StatefulWidget {
   const HomeTabs({super.key});
@@ -12,11 +13,10 @@ class HomeTabs extends StatefulWidget {
 class _HomeTabsState extends State<HomeTabs> {
   int _currentIndex = 0; // Controla qué pestaña está activa
 
-  // Lista de las pantallas que se mostrarán sobre la barra
   final List<Widget> _pantallas = [
     const MatchSportView(), // Pestaña 0: Tu pantalla actual tipo Tinder
     const ChatsView(), // Pestaña 1
-    const Center(child: Text('Pantalla de Perfil (Próximamente)', style: TextStyle(fontSize: 20))), // Pestaña 2
+    const ProfileView(), // Pestaña 2
   ];
 
   @override
