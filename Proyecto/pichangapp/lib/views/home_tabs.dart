@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'match_sport_view.dart';
 import 'chats_view.dart';
+import 'profile_view.dart';
 
 class HomeTabs extends StatefulWidget {
   const HomeTabs({super.key});
@@ -15,9 +16,7 @@ class _HomeTabsState extends State<HomeTabs> {
   final List<Widget> _screens = const [
     MatchSportView(),
     ChatsView(),
-    Center(
-      child: Text('Pantalla de Perfil'),
-    ),
+    ProfileView(),
   ];
 
   void _onItemTapped(int index) {

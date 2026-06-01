@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -5,60 +6,38 @@ import '../models/login_response.dart';
 
 class ApiService {
   static String get usuarioBaseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8001';
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8001';
-    }
-
+    if (kIsWeb) return 'http://127.0.0.1:8001';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8001';
     return 'http://127.0.0.1:8001';
   }
 
   static String get matchBaseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8081';
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8081';
-    }
-
+    if (kIsWeb) return 'http://127.0.0.1:8081';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8081';
     return 'http://127.0.0.1:8081';
   }
 
   static String get comunicacionBaseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8082';
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8082';
-    }
-
+    if (kIsWeb) return 'http://127.0.0.1:8082';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8082';
     return 'http://127.0.0.1:8082';
   }
 
   static String get seguridadBaseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8004';
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8004';
-    }
-
+    if (kIsWeb) return 'http://127.0.0.1:8004';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8004';
     return 'http://127.0.0.1:8004';
   }
 
   Future<bool> registrarUsuario(Map<String, dynamic> userData) async {
     try {
-      final response = await http.post(
-        Uri.parse('$usuarioBaseUrl/api/users'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(userData),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$usuarioBaseUrl/api/users'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(userData),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return true;
@@ -75,14 +54,16 @@ class ApiService {
 
   Future<LoginResponse?> loginUsuario(String username, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse('$usuarioBaseUrl/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': username,
-          'password': password,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$usuarioBaseUrl/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'username': username,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -100,12 +81,14 @@ class ApiService {
 
   Future<Map<String, dynamic>?> obtenerUsuarioActual(String token) async {
     try {
-      final response = await http.get(
-        Uri.parse('$usuarioBaseUrl/api/users/me'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$usuarioBaseUrl/api/users/me'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -124,12 +107,14 @@ class ApiService {
     required int excludeId,
     required String token,
   }) async {
-    final response = await http.get(
-      Uri.parse('$usuarioBaseUrl/api/users/discover?excludeId=$excludeId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await http
+        .get(
+          Uri.parse('$usuarioBaseUrl/api/users/discover?excludeId=$excludeId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List<dynamic>;
@@ -138,39 +123,86 @@ class ApiService {
     throw Exception('Error al descubrir usuarios: ${response.statusCode} ${response.body}');
   }
 
+  Future<List<int>> obtenerUsuariosInteractuados({
+    required int usuarioId,
+  }) async {
+    final response = await http
+        .get(
+          Uri.parse('$matchBaseUrl/api/v1/interacciones/usuarios-interactuados/$usuarioId'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data
+            .map((item) => int.tryParse(item.toString()))
+            .whereType<int>()
+            .toList();
+      }
+
+      return [];
+    }
+
+    throw Exception('Error al obtener usuarios interactuados: ${response.statusCode}');
+  }
+
   Future<bool> enviarInteraccion({
     required int usuarioOrigenId,
     required int usuarioDestinoId,
     required String tipo,
   }) async {
-    final response = await http.post(
-      Uri.parse('$matchBaseUrl/api/v1/interacciones'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'usuarioOrigenId': usuarioOrigenId,
-        'usuarioDestinoId': usuarioDestinoId,
-        'tipo': tipo,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$matchBaseUrl/api/v1/interacciones'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'usuarioOrigenId': usuarioOrigenId,
+            'usuarioDestinoId': usuarioDestinoId,
+            'tipo': tipo,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 201 || response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['hayMatch'] == true;
     }
 
-    throw Exception('Error interacción: ${response.statusCode} ${response.body}');
+    String mensaje = 'No se pudo registrar la interacción.';
+
+    try {
+      final data = jsonDecode(response.body);
+
+      if (data is Map<String, dynamic>) {
+        mensaje = data['message'] ??
+            data['mensaje'] ??
+            data['error'] ??
+            mensaje;
+      }
+    } catch (_) {
+      mensaje = 'Error ${response.statusCode} al registrar interacción.';
+    }
+
+    throw Exception(mensaje);
   }
 
   Future<List<dynamic>> obtenerSalasUsuario({
     required int usuarioId,
     required String token,
   }) async {
-    final response = await http.get(
-      Uri.parse('$comunicacionBaseUrl/api/v1/chat/salas/user/$usuarioId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await http
+        .get(
+          Uri.parse('$comunicacionBaseUrl/api/v1/chat/salas/user/$usuarioId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List<dynamic>;
@@ -183,12 +215,14 @@ class ApiService {
     required int salaId,
     required String token,
   }) async {
-    final response = await http.get(
-      Uri.parse('$comunicacionBaseUrl/api/v1/chat/salas/$salaId/mensajes?page=0&size=50'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await http
+        .get(
+          Uri.parse('$comunicacionBaseUrl/api/v1/chat/salas/$salaId/mensajes?page=0&size=50'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -213,82 +247,98 @@ class ApiService {
     required String contenido,
     required String token,
   }) async {
-    final response = await http.post(
-      Uri.parse('$comunicacionBaseUrl/api/v1/chat/salas/$salaId/mensajes'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'remitenteId': remitenteId,
-        'contenido': contenido,
-      }),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$comunicacionBaseUrl/api/v1/chat/salas/$salaId/mensajes'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'remitenteId': remitenteId,
+              'contenido': contenido,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      return true;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      }
+
+      debugPrint('Error enviar mensaje: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente enviar mensaje: $e');
+      return false;
     }
-
-    debugPrint('Error enviar mensaje: ${response.statusCode}');
-    debugPrint('Respuesta backend: ${response.body}');
-    return false;
   }
 
-Future<bool> bloquearUsuario({
-  required int idUsuarioOrigen,
-  required int idUsuarioBloqueado,
-}) async {
-  try {
-    final response = await http
-        .post(
-          Uri.parse('$seguridadBaseUrl/api/safety/bloquear'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'idUsuarioOrigen': idUsuarioOrigen,
-            'idUsuarioBloqueado': idUsuarioBloqueado,
-          }),
-        )
-        .timeout(const Duration(seconds: 10));
+  Future<bool> bloquearUsuario({
+    required int idUsuarioOrigen,
+    required int idUsuarioBloqueado,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$seguridadBaseUrl/api/safety/bloquear'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'idUsuarioOrigen': idUsuarioOrigen,
+              'idUsuarioBloqueado': idUsuarioBloqueado,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      return true;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      }
+
+      if (response.statusCode == 409 || response.statusCode == 500) {
+        final body = response.body.toLowerCase();
+
+        if (body.contains('ya se encuentra bloqueado') ||
+            body.contains('already') ||
+            body.contains('bloqueado')) {
+          return true;
+        }
+      }
+
+      debugPrint('Error bloquear usuario: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente bloquear usuario: $e');
+      return false;
     }
-
-    debugPrint('Error bloquear usuario: ${response.statusCode}');
-    debugPrint('Respuesta backend: ${response.body}');
-    return false;
-  } catch (e) {
-    debugPrint('Error cliente bloquear usuario: $e');
-    return false;
-  }
-}
-
-  Future<List<int>> obtenerUsuariosInteractuados({
-  required int usuarioId,
-}) async {
-  final response = await http.get(
-    Uri.parse('$matchBaseUrl/api/v1/interacciones/usuarios-interactuados/$usuarioId'),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-
-    if (data is List) {
-      return data
-          .map((item) => int.tryParse(item.toString()))
-          .whereType<int>()
-          .toList();
-    }
-
-    return [];
   }
 
-  throw Exception(
-    'Error al obtener usuarios interactuados: ${response.statusCode}',
-  );
-}
+  Future<bool> existeBloqueoEntreUsuarios({
+    required int usuarioAId,
+    required int usuarioBId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '$seguridadBaseUrl/api/safety/bloqueos/existe-entre?usuarioAId=$usuarioAId&usuarioBId=$usuarioBId',
+            ),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
 
+      if (response.statusCode == 200) {
+        final body = response.body.trim().toLowerCase();
+        return body == 'true';
+      }
+
+      debugPrint('Error verificar bloqueo: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente verificar bloqueo: $e');
+      return false;
+    }
+  }
 }

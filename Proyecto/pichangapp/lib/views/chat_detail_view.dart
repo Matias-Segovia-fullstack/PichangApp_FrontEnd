@@ -38,13 +38,31 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   @override
   void initState() {
     super.initState();
-    _cargarMensajes();
+    _inicializarChat();
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _inicializarChat() async {
+    await _verificarBloqueoExistente();
+    await _cargarMensajes();
+  }
+
+  Future<void> _verificarBloqueoExistente() async {
+    final existeBloqueo = await _apiService.existeBloqueoEntreUsuarios(
+      usuarioAId: widget.miUsuarioId,
+      usuarioBId: otroUsuarioId,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _usuarioBloqueado = existeBloqueo;
+    });
   }
 
   Future<void> _cargarMensajes() async {
@@ -107,6 +125,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       _messageController.clear();
       await _cargarMensajes();
     } else {
+      await _verificarBloqueoExistente();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -149,59 +169,59 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     }
   }
 
-Future<void> _bloquearUsuario() async {
-  if (_isBlocking || _usuarioBloqueado) {
-    return;
-  }
-
-  setState(() {
-    _isBlocking = true;
-  });
-
-  try {
-    final bloqueado = await _apiService.bloquearUsuario(
-      idUsuarioOrigen: widget.miUsuarioId,
-      idUsuarioBloqueado: otroUsuarioId,
-    );
-
-    if (!mounted) return;
+  Future<void> _bloquearUsuario() async {
+    if (_isBlocking || _usuarioBloqueado) {
+      return;
+    }
 
     setState(() {
-      _isBlocking = false;
-      _usuarioBloqueado = bloqueado;
+      _isBlocking = true;
     });
 
-    if (bloqueado) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Usuario bloqueado. Seguridad notificará a comunicación mediante RabbitMQ.',
-          ),
-        ),
+    try {
+      final bloqueado = await _apiService.bloquearUsuario(
+        idUsuarioOrigen: widget.miUsuarioId,
+        idUsuarioBloqueado: otroUsuarioId,
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No se pudo bloquear al usuario. Revisa que msvc-seguridad esté corriendo.',
+
+      if (!mounted) return;
+
+      setState(() {
+        _isBlocking = false;
+        _usuarioBloqueado = bloqueado;
+      });
+
+      if (bloqueado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Usuario bloqueado. El chat quedó deshabilitado.',
+            ),
           ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo bloquear al usuario. Revisa que msvc-seguridad esté corriendo.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isBlocking = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al bloquear usuario: $e'),
         ),
       );
     }
-  } catch (e) {
-    if (!mounted) return;
-
-    setState(() {
-      _isBlocking = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error al bloquear usuario: $e'),
-      ),
-    );
   }
-}
 
   Widget _mensajeBubble(MensajeChat mensaje) {
     final esMio = mensaje.remitenteId == widget.miUsuarioId;
@@ -275,7 +295,10 @@ Future<void> _bloquearUsuario() async {
 
     return Expanded(
       child: RefreshIndicator(
-        onRefresh: _cargarMensajes,
+        onRefresh: () async {
+          await _verificarBloqueoExistente();
+          await _cargarMensajes();
+        },
         child: ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: _mensajes.length,
@@ -295,7 +318,7 @@ Future<void> _bloquearUsuario() async {
           padding: const EdgeInsets.all(14),
           color: Colors.red[50],
           child: const Text(
-            'Usuario bloqueado. Ya no puedes enviar mensajes en esta sala.',
+            'Chat bloqueado. Ya no se pueden enviar mensajes en esta sala.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.red,
@@ -347,7 +370,7 @@ Future<void> _bloquearUsuario() async {
         color: Colors.red[50],
         padding: const EdgeInsets.all(12),
         child: Text(
-          'Bloqueaste al usuario $otroUsuarioId. Safety ya fue notificado.',
+          'Chat bloqueado entre usuario ${widget.miUsuarioId} y usuario $otroUsuarioId.',
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Colors.red,
@@ -369,6 +392,27 @@ Future<void> _bloquearUsuario() async {
     );
   }
 
+  Widget _botonBloquear() {
+    if (_usuarioBloqueado) {
+      return const Padding(
+        padding: EdgeInsets.only(right: 12),
+        child: Icon(Icons.block, color: Colors.red),
+      );
+    }
+
+    return IconButton(
+      onPressed: _isBlocking ? null : _confirmarBloqueo,
+      icon: _isBlocking
+          ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.block, color: Colors.red),
+      tooltip: 'Bloquear usuario',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -376,21 +420,13 @@ Future<void> _bloquearUsuario() async {
         title: Text('Usuario $otroUsuarioId · Sala ${widget.sala.id}'),
         actions: [
           IconButton(
-            onPressed: _cargarMensajes,
+            onPressed: () async {
+              await _verificarBloqueoExistente();
+              await _cargarMensajes();
+            },
             icon: const Icon(Icons.refresh),
           ),
-          IconButton(
-            onPressed:
-                _isBlocking || _usuarioBloqueado ? null : _confirmarBloqueo,
-            icon: _isBlocking
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.block, color: Colors.red),
-            tooltip: 'Bloquear usuario',
-          ),
+          _botonBloquear(),
         ],
       ),
       body: Column(
