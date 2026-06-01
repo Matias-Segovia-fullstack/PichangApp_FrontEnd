@@ -1,7 +1,9 @@
-// 1. Modelo que mapea la futura respuesta de tu base de datos para la lista de chats
+import '../services/api_service.dart';
+
+// 1. Modelo que mapea la respuesta de tu base de datos para la lista de chats
 class MatchChat {
   final String chatId;
-  final String userId; 
+  final int otherUserId; 
   final String athleteName;
   final String imageUrl;
   final String lastMessage;
@@ -10,7 +12,7 @@ class MatchChat {
 
   MatchChat({
     required this.chatId,
-    required this.userId,
+    required this.otherUserId,
     required this.athleteName,
     required this.imageUrl,
     required this.lastMessage,
@@ -22,7 +24,7 @@ class MatchChat {
 // 2. Modelo para un mensaje individual dentro de una conversación
 class ChatMessage {
   final String messageId;
-  final String senderId; 
+  final int senderId; 
   final String text;
   final String timestamp;
 
@@ -36,62 +38,59 @@ class ChatMessage {
 
 // 3. Controlador unificado que gestiona toda la lógica
 class ChatController {
-  
-  // Mi propio ID simulado (clave para alinear los mensajes a la derecha o izquierda)
-  final String miPropioId = "mi_usuario_123";
+  final ApiService _apiService = ApiService();
+  final int miPropioId = 1; // Usando 1 para la demo
 
-  // Retorna la lista general de conversaciones
-  List<MatchChat> obtenerChatsSimulados() {
-    return [
-      MatchChat(
-        chatId: "chat_001",
-        userId: "user_88",
-        athleteName: "Carlos, 28",
-        imageUrl: "https://i.pravatar.cc/150?img=11", 
-        lastMessage: "¡Genial! ¿Nos vemos el sábado en la cancha entonces?",
-        timestamp: "10:30 AM",
-        isUnread: true,
-      ),
-      MatchChat(
-        chatId: "chat_002",
-        userId: "user_45",
-        athleteName: "Andrea, 25",
-        imageUrl: "https://i.pravatar.cc/150?img=5",
-        lastMessage: "Yo llevo las pelotas de tenis.",
-        timestamp: "Ayer",
+  Future<List<MatchChat>> obtenerChatsDelBackend() async {
+    final salas = await _apiService.getUserRooms(miPropioId);
+    List<MatchChat> chats = [];
+
+    for (var sala in salas) {
+      String chatId = sala['id'].toString();
+      int uA = sala['usuarioAId'] ?? 0;
+      int uB = sala['usuarioBId'] ?? 0;
+      int otherUserId = (uA == miPropioId) ? uB : uA;
+
+      // Obtener datos del otro usuario
+      var otherUser = await _apiService.getUsuario(otherUserId);
+      String name = otherUser?['nombre'] ?? 'Usuario $otherUserId';
+
+      chats.add(MatchChat(
+        chatId: chatId,
+        otherUserId: otherUserId,
+        athleteName: name,
+        imageUrl: "https://via.placeholder.com/150?text=$name",
+        lastMessage: "Haz tap para chatear", // En el futuro se puede sacar del ultimo mensaje
+        timestamp: "Ahora",
         isUnread: false,
-      ),
-      MatchChat(
-        chatId: "chat_003",
-        userId: "user_12",
-        athleteName: "Felipe, 31",
-        imageUrl: "https://i.pravatar.cc/150?img=68",
-        lastMessage: "Me parece perfecto, confirmo asistencia.",
-        timestamp: "Lun",
-        isUnread: false,
-      ),
-    ];
+      ));
+    }
+    return chats;
   }
   
-  // Retorna los mensajes específicos de una sala
-  List<ChatMessage> obtenerMensajesPorChat(String chatId) {
-    if (chatId == "chat_001") {
-      return [
-        ChatMessage(messageId: "m1", senderId: "user_88", text: "Hola, vi que juegas tenis.", timestamp: "10:00 AM"),
-        ChatMessage(messageId: "m2", senderId: miPropioId, text: "¡Hola Carlos! Sí, nivel intermedio.", timestamp: "10:15 AM"),
-        ChatMessage(messageId: "m3", senderId: "user_88", text: "¡Genial! ¿Nos vemos el sábado en la cancha entonces?", timestamp: "10:30 AM"),
-      ];
-    } else if (chatId == "chat_002") {
-      return [
-        ChatMessage(messageId: "m4", senderId: miPropioId, text: "¿Tienes raqueta extra?", timestamp: "Ayer"),
-        ChatMessage(messageId: "m5", senderId: "user_45", text: "Sí, tranquila. Yo llevo las pelotas de tenis.", timestamp: "Ayer"),
-      ];
-    } else if (chatId == "chat_003") {
-      return [
-        ChatMessage(messageId: "m6", senderId: miPropioId, text: "¿A qué hora el partido?", timestamp: "Lun"),
-        ChatMessage(messageId: "m7", senderId: "user_12", text: "Me parece perfecto, confirmo asistencia.", timestamp: "Lun"),
-      ];
-    }
-    return []; 
+  Future<List<ChatMessage>> obtenerMensajesPorChat(String chatId) async {
+    // Si chatId fuera entero en el backend, en MongoDB suele ser String.
+    // Usamos temporalmente 1 como dummy para el backend local si no es mongo,
+    // o castear. Pero en tu API parece que salas/{salaId} salaId es Long en Java, o String en MongoDB.
+    // Veamos cómo lo declaraste: en SalaChatController es Long salaId!
+    // Entonces chatId debería ser int.
+    // Vamos a parchearlo convirtiendo a entero o parseando.
+    int salaIdInt = int.tryParse(chatId) ?? 0;
+    
+    final mensajes = await _apiService.getMensajes(salaIdInt);
+    return mensajes.map((m) {
+      return ChatMessage(
+        messageId: (m['id'] ?? 0).toString(),
+        senderId: m['remitenteId'] ?? 0,
+        text: m['contenido'] ?? '',
+        timestamp: m['fechaEnvio'] ?? '',
+      );
+    }).toList();
   }
+
+  Future<bool> enviarMensaje(String chatId, String texto) async {
+    int salaIdInt = int.tryParse(chatId) ?? 0;
+    return await _apiService.enviarMensaje(salaIdInt, miPropioId, texto);
+  }
+
 }

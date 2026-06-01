@@ -13,30 +13,34 @@ class ChatDetailView extends StatefulWidget {
 class _ChatDetailViewState extends State<ChatDetailView> {
   final _chatController = ChatController();
   final _messageInputController = TextEditingController();
-  late List<ChatMessage> _mensajes;
+  late Future<List<ChatMessage>> _mensajesFuture;
 
   @override
   void initState() {
     super.initState();
     // Cargamos los mensajes ESPECÍFICOS de esta sala de chat
-    _mensajes = _chatController.obtenerMensajesPorChat(widget.chat.chatId);
+    _mensajesFuture = _chatController.obtenerMensajesPorChat(widget.chat.chatId);
   }
 
-  void _enviarMensajeSimulado() {
+  void _enviarMensaje() async {
     if (_messageInputController.text.trim().isEmpty) return;
 
-    setState(() {
-      // Simulamos agregar el mensaje a la lista (luego esto será un POST al backend o un evento emitido)
-      _mensajes.add(
-        ChatMessage(
-          messageId: DateTime.now().toString(),
-          senderId: _chatController.miPropioId, // Lo marco como mío
-          text: _messageInputController.text.trim(),
-          timestamp: "Ahora",
-        ),
+    String texto = _messageInputController.text.trim();
+    _messageInputController.clear();
+    
+    // Enviar el POST al backend
+    bool exito = await _chatController.enviarMensaje(widget.chat.chatId, texto);
+    if (exito) {
+      // Recargar mensajes
+      setState(() {
+        _mensajesFuture = _chatController.obtenerMensajesPorChat(widget.chat.chatId);
+      });
+    } else {
+      // Mostrar error
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al enviar mensaje')),
       );
-      _messageInputController.clear();
-    });
+    }
   }
 
   @override
@@ -58,43 +62,57 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         children: [
           // Área de los mensajes
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _mensajes.length,
-              itemBuilder: (context, index) {
-                final mensaje = _mensajes[index];
-                // Comprobamos si el mensaje lo envié yo o la otra persona
-                final isMe = mensaje.senderId == _chatController.miPropioId;
+            child: FutureBuilder<List<ChatMessage>>(
+              future: _mensajesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No hay mensajes aún. ¡Rompe el hielo!'));
+                }
 
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isMe ? Colors.blue : Colors.grey[200],
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMe ? 16 : 0),
-                        bottomRight: Radius.circular(isMe ? 0 : 16),
+                final mensajes = snapshot.data!;
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: mensajes.length,
+                  itemBuilder: (context, index) {
+                    final mensaje = mensajes[index];
+                    // Comprobamos si el mensaje lo envié yo o la otra persona
+                    final isMe = mensaje.senderId == _chatController.miPropioId;
+
+                    return Align(
+                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.blue : Colors.grey[200],
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isMe ? 16 : 0),
+                            bottomRight: Radius.circular(isMe ? 0 : 16),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              mensaje.text,
+                              style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              mensaje.timestamp,
+                              style: TextStyle(color: isMe ? Colors.white70 : Colors.black54, fontSize: 10),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          mensaje.text,
-                          style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          mensaje.timestamp,
-                          style: TextStyle(color: isMe ? Colors.white70 : Colors.black54, fontSize: 10),
-                        ),
-                      ],
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),
@@ -122,7 +140,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                     radius: 24,
                     child: IconButton(
                       icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _enviarMensajeSimulado,
+                      onPressed: _enviarMensaje,
                     ),
                   ),
                 ],

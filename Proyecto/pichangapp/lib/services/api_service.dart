@@ -27,6 +27,16 @@ class ApiService {
     }
   }
 
+  static String get baseChatUrl {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8082/api/v1/chat'; // Chrome / Web
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:8082/api/v1/chat';  // Emulador Android
+    } else {
+      return 'http://127.0.0.1:8082/api/v1/chat'; // Windows / iOS / Mac
+    }
+  }
+
   static String get loginUrl => baseUrl.replaceAll('/api', '/login');
   /// Retorna [true] si la cuenta se creó exitosamente (código 201 o 200).
   /// En caso de error (red o validación), captura la excepción y retorna [false].
@@ -97,10 +107,33 @@ Future<String?> loginUsuario(String username, String password) async {
         },
       );
 
+      // Usaremos un ID de origen fijo (1) para la demo, asumiendo que es el usuario logueado.
+      final int miPropioId = 1;
+
+      // Obtener a los que ya les dio like/dislike
+      final interaccionesResponse = await http.get(
+        Uri.parse('$baseMatchUrl/interacciones/user/$miPropioId'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      List<int> interactedUserIds = [];
+      if (interaccionesResponse.statusCode == 200) {
+        final List<dynamic> interacciones = jsonDecode(interaccionesResponse.body);
+        interactedUserIds = interacciones.map((i) => i['usuarioDestinoId'] as int).toList();
+      }
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         if (data['_embedded'] != null && data['_embedded']['userResponseDTOList'] != null) {
-          return data['_embedded']['userResponseDTOList'];
+          final List<dynamic> allUsers = data['_embedded']['userResponseDTOList'];
+          // Filtrar los que ya interactuamos y a nosotros mismos
+          return allUsers.where((u) {
+            int userId = u['id'] ?? 0;
+            return userId != miPropioId && !interactedUserIds.contains(userId);
+          }).toList();
         }
         return [];
       } else {
@@ -141,6 +174,111 @@ Future<String?> loginUsuario(String username, String password) async {
     } catch (e) {
       print("Excepción enviando interacción: $e");
       return false;
+    }
+  }
+
+  /// Obtiene la lista de chats para un usuario
+  Future<List<dynamic>> getUserRooms(int userId) async {
+    try {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+
+      final response = await http.get(
+        Uri.parse('$baseChatUrl/salas/user/$userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Error fetching rooms: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Excepción fetching rooms: $e");
+      return [];
+    }
+  }
+
+  /// Obtiene los mensajes de una sala
+  Future<List<dynamic>> getMensajes(int salaId) async {
+    try {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+
+      final response = await http.get(
+        Uri.parse('$baseChatUrl/salas/$salaId/mensajes'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        if (data['content'] != null) {
+          return data['content']; // Es un Page de Spring
+        }
+        return [];
+      } else {
+        print("Error fetching messages: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Excepción fetching messages: $e");
+      return [];
+    }
+  }
+
+  /// Enviar un mensaje a una sala
+  Future<bool> enviarMensaje(int salaId, int emisorId, String texto) async {
+    try {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+
+      final response = await http.post(
+        Uri.parse('$baseChatUrl/salas/$salaId/mensajes'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          "remitenteId": emisorId,
+          "contenido": texto
+        }),
+      );
+
+      return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      print("Excepción enviando mensaje: $e");
+      return false;
+    }
+  }
+
+  /// Obtiene los datos de un usuario por su ID
+  Future<Map<String, dynamic>?> getUsuario(int id) async {
+    try {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print("Excepción getUsuario: $e");
+      return null;
     }
   }
 }
