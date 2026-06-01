@@ -1,4 +1,5 @@
 class Deportista {
+  final int id;
   final String nombre;
   final int edad;
   final String deporte;
@@ -7,6 +8,7 @@ class Deportista {
   final String fotoUrl;
 
   Deportista({
+    required this.id,
     required this.nombre,
     required this.edad,
     required this.deporte,

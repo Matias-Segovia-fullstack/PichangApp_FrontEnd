@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/deportista.dart';
+import '../services/api_service.dart';
 
 class MatchSportView extends StatefulWidget {
   const MatchSportView({super.key});
@@ -9,25 +10,51 @@ class MatchSportView extends StatefulWidget {
 }
 
 class _MatchSportViewState extends State<MatchSportView> {
-  // 1. Datos simulados (Mock Data). En el futuro, esto se llenará mediante una petición HTTP GET.
-  final List<Deportista> _deportistas = [
-    Deportista(nombre: "Carlos", edad: 25, deporte: "Fútbol", altura: 1.78, nivel: "Amateur", fotoUrl: "https://via.placeholder.com/400x500.png?text=Carlos+Futbol"),
-    Deportista(nombre: "Andrea", edad: 22, deporte: "Tenis", altura: 1.65, nivel: "Intermedio", fotoUrl: "https://via.placeholder.com/400x500.png?text=Andrea+Tenis"),
-    Deportista(nombre: "Luis", edad: 28, deporte: "Básquetbol", altura: 1.90, nivel: "Avanzado", fotoUrl: "https://via.placeholder.com/400x500.png?text=Luis+Basquet"),
-  ];
-
+  final ApiService _apiService = ApiService();
+  List<Deportista> _deportistas = [];
+  bool _isLoading = true;
   int _indiceActual = 0;
+  
+  // Usaremos un ID de origen fijo (1) para la demo, asumiendo que es el usuario logueado.
+  final int _miPropioId = 1; 
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDeportistas();
+  }
+
+  Future<void> _cargarDeportistas() async {
+    final List<dynamic> users = await _apiService.getPosiblesMatches();
+    setState(() {
+      _deportistas = users.where((u) => u['id'] != _miPropioId).map((u) {
+        return Deportista(
+          id: u['id'] ?? 0,
+          nombre: u['nombre'] ?? 'Sin nombre',
+          edad: 25, // Datos de relleno hasta tener perfil completo
+          deporte: "Deporte", 
+          altura: 1.75,
+          nivel: "Amateur",
+          fotoUrl: "https://via.placeholder.com/400x500.png?text=${u['nombre'] ?? 'User'}",
+        );
+      }).toList();
+      _isLoading = false;
+    });
+  }
 
   // 2. Lógica de transición
   void _siguientePerfil(String accion) {
-    // Imprimimos en consola usando debugPrint (buena práctica en Flutter)
-    debugPrint("$accion registrado para: ${_deportistas[_indiceActual].nombre}"); 
-    
-    setState(() {
-      if (_indiceActual < _deportistas.length) {
+    if (_indiceActual < _deportistas.length) {
+      Deportista actual = _deportistas[_indiceActual];
+      String tipoInteraccion = accion == "Like" ? "ME_GUSTA" : "NO_ME_GUSTA";
+      
+      // Enviar interacción al backend
+      _apiService.enviarInteraccion(_miPropioId, actual.id, tipoInteraccion);
+      
+      setState(() {
         _indiceActual++;
-      }
-    });
+      });
+    }
   }
 
   @override
@@ -42,9 +69,11 @@ class _MatchSportViewState extends State<MatchSportView> {
         foregroundColor: Colors.black,
       ),
       // Si ya no hay más perfiles, mostramos un mensaje final
-      body: _indiceActual >= _deportistas.length
-          ? const Center(child: Text("No hay más deportistas en tu zona", style: TextStyle(fontSize: 18)))
-          : _construirTarjeta(_deportistas[_indiceActual]),
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : _indiceActual >= _deportistas.length
+              ? const Center(child: Text("No hay más deportistas en tu zona", style: TextStyle(fontSize: 18)))
+              : _construirTarjeta(_deportistas[_indiceActual]),
     );
   }
 

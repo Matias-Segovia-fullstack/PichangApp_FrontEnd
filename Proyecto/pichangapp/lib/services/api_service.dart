@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   // Usamos 10.0.2.2 porque es el "localhost" del emulador de Android.
@@ -16,9 +17,17 @@ class ApiService {
     }
   }
 
-  static String get loginUrl => baseUrl.replaceAll('/api', '/login');
+  static String get baseMatchUrl {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8081/api/v1'; // Chrome / Web
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:8081/api/v1';  // Emulador Android
+    } else {
+      return 'http://127.0.0.1:8081/api/v1'; // Windows / iOS / Mac
+    }
+  }
 
-  /// Realiza la petición POST al backend para registrar un nuevo usuario.
+  static String get loginUrl => baseUrl.replaceAll('/api', '/login');
   /// Retorna [true] si la cuenta se creó exitosamente (código 201 o 200).
   /// En caso de error (red o validación), captura la excepción y retorna [false].
   Future<bool> registrarUsuario(Map<String, dynamic> userData) async {
@@ -73,4 +82,65 @@ Future<String?> loginUsuario(String username, String password) async {
     return null;
   }
 }
+
+  /// Obtiene la lista de usuarios desde msvc-usuario
+  Future<List<dynamic>> getPosiblesMatches() async {
+    try {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/users'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        if (data['_embedded'] != null && data['_embedded']['userResponseDTOList'] != null) {
+          return data['_embedded']['userResponseDTOList'];
+        }
+        return [];
+      } else {
+        print("Error fetching users: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Excepción fetching users: $e");
+      return [];
+    }
+  }
+
+  /// Envia una interacción (Like/Dislike)
+  Future<bool> enviarInteraccion(int usuarioOrigenId, int usuarioDestinoId, String tipo) async {
+    try {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+
+      final response = await http.post(
+        Uri.parse('$baseMatchUrl/interacciones'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          "usuarioOrigenId": usuarioOrigenId,
+          "usuarioDestinoId": usuarioDestinoId,
+          "tipo": tipo // "ME_GUSTA" o "DISME_GUSTA"
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      } else {
+        print("Error interacción: ${response.statusCode}");
+        return false;
+      }
+    } catch (e) {
+      print("Excepción enviando interacción: $e");
+      return false;
+    }
+  }
 }
