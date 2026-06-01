@@ -4,8 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
+<<<<<<< HEAD
   // Usamos 10.0.2.2 porque es el "localhost" del emulador de Android.
   // Así el celular virtual se puede conectar al backend en tu computadora.
+=======
+  // Detecta automáticamente en qué entorno estás ejecutando la app y asigna la IP correcta.
+  // Así ningún colaborador tendrá problemas si usa Web, Android, Windows o iOS.
+>>>>>>> 90df64d199223ec33d13c29e63e1631f07af081c
   static String get baseUrl {
     if (kIsWeb) {
       return 'http://127.0.0.1:8001/api'; // Chrome / Web
@@ -15,8 +20,11 @@ class ApiService {
       return 'http://127.0.0.1:8001/api'; // Windows / iOS / Mac
     }
   }
+<<<<<<< HEAD
 
   static String get loginUrl => baseUrl.replaceAll('/api', '/login');
+=======
+>>>>>>> 90df64d199223ec33d13c29e63e1631f07af081c
 
   /// Realiza la petición POST al backend para registrar un nuevo usuario.
   /// Retorna [true] si la cuenta se creó exitosamente (código 201 o 200).
