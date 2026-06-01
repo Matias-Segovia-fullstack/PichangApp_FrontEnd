@@ -9,7 +9,8 @@ class RegisterView extends StatefulWidget {
 }
 
 class _RegisterViewState extends State<RegisterView> {
-  final _authController = AuthController();
+  final AuthController _authController = AuthController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -17,118 +18,127 @@ class _RegisterViewState extends State<RegisterView> {
     super.dispose();
   }
 
+  Future<void> _registrar() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final bool success = await _authController.registrar();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cuenta creada con éxito. Ya puedes iniciar sesión.'),
+        ),
+      );
+
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al crear la cuenta. Revisa los datos o usa otro username/email.'),
+        ),
+      );
+    }
+  }
+
+  Widget _campo({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        prefixIcon: Icon(icon),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Crear Cuenta Deportiva'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context), // Vuelve al Login
-        ),
+        title: const Text('Crear cuenta deportiva'),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Center(
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Campo Nombre Completo
-                TextField(
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Por ahora la Athlete Card se crea automáticamente como jugador de Basket: edad 25, altura 180 cm y posición Base. Luego haremos estos campos editables.',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _campo(
                   controller: _authController.nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
+                  label: 'Nombre',
+                  icon: Icons.person,
                 ),
                 const SizedBox(height: 16),
-
-                // Campo Apellido
-                TextField(
+                _campo(
                   controller: _authController.apellidoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Apellido',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
+                  label: 'Apellido',
+                  icon: Icons.person_outline,
                 ),
                 const SizedBox(height: 16),
-
-                // Campo Username
-                TextField(
+                _campo(
                   controller: _authController.usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre de usuario (Username)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.account_circle),
-                  ),
+                  label: 'Username',
+                  icon: Icons.account_circle,
                 ),
                 const SizedBox(height: 16),
-
-                // Campo Correo
-                TextField(
+                _campo(
                   controller: _authController.emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo Electrónico',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
+                  label: 'Correo electrónico',
+                  icon: Icons.email,
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
-
-                // Campo Contraseña
-                TextField(
+                _campo(
                   controller: _authController.passwordController,
+                  label: 'Contraseña',
+                  icon: Icons.lock,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
                 ),
                 const SizedBox(height: 16),
-                
-                // Campo RUT (Ya no calcula el género automáticamente)
-                TextField(
+                _campo(
                   controller: _authController.rutController,
-                  decoration: const InputDecoration(
-                    labelText: 'RUT (ej: 12345678-9)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.badge),
-                  ),
+                  label: 'RUT opcional',
+                  icon: Icons.badge,
                 ),
-                const SizedBox(height: 32),
-                
-                // Botón de Registro
+                const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: () async {
-                    bool success = await _authController.registrar();
-                    if (!context.mounted) return;
-                    
-                    if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Cuenta creada con éxito. Ya puedes iniciar sesión.',
-                          ),
-                        ),
-                      );
-                      Navigator.pop(context);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Error al crear la cuenta. Revisa los datos.'),
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  onPressed: _isLoading ? null : _registrar,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Registrarme'),
                   ),
-                  child: const Text('Registrarme'),
                 ),
               ],
             ),
