@@ -10,32 +10,32 @@ class HomeTabs extends StatefulWidget {
 }
 
 class _HomeTabsState extends State<HomeTabs> {
-  int _currentIndex = 0; // Controla qué pestaña está activa
+  int _selectedIndex = 0;
 
-  // Lista de las pantallas que se mostrarán sobre la barra
-  final List<Widget> _pantallas = [
-    const MatchSportView(), // Pestaña 0: Tu pantalla actual tipo Tinder
-    const ChatsView(), // Pestaña 1
-    const Center(child: Text('Pantalla de Perfil (Próximamente)', style: TextStyle(fontSize: 20))), // Pestaña 2
+  final List<Widget> _screens = const [
+    MatchSportView(),
+    ChatsView(),
+    Center(
+      child: Text('Pantalla de Perfil'),
+    ),
   ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pantallas[_currentIndex], // Muestra la pantalla según el ícono seleccionado
+      body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index; // Cambia de vista al hacer clic
-          });
-        },
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed, // Mantiene los íconos fijos y limpios
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.explore),
+            icon: Icon(Icons.sports_basketball),
             label: 'Descubrir',
           ),
           BottomNavigationBarItem(

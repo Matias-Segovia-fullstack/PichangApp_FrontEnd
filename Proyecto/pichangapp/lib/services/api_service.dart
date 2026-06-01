@@ -234,18 +234,21 @@ class ApiService {
     return false;
   }
 
-  Future<bool> bloquearUsuario({
-    required int idUsuarioOrigen,
-    required int idUsuarioBloqueado,
-  }) async {
-    final response = await http.post(
-      Uri.parse('$seguridadBaseUrl/api/safety/bloquear'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'idUsuarioOrigen': idUsuarioOrigen,
-        'idUsuarioBloqueado': idUsuarioBloqueado,
-      }),
-    );
+Future<bool> bloquearUsuario({
+  required int idUsuarioOrigen,
+  required int idUsuarioBloqueado,
+}) async {
+  try {
+    final response = await http
+        .post(
+          Uri.parse('$seguridadBaseUrl/api/safety/bloquear'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'idUsuarioOrigen': idUsuarioOrigen,
+            'idUsuarioBloqueado': idUsuarioBloqueado,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 201 || response.statusCode == 200) {
       return true;
@@ -254,5 +257,38 @@ class ApiService {
     debugPrint('Error bloquear usuario: ${response.statusCode}');
     debugPrint('Respuesta backend: ${response.body}');
     return false;
+  } catch (e) {
+    debugPrint('Error cliente bloquear usuario: $e');
+    return false;
   }
+}
+
+  Future<List<int>> obtenerUsuariosInteractuados({
+  required int usuarioId,
+}) async {
+  final response = await http.get(
+    Uri.parse('$matchBaseUrl/api/v1/interacciones/usuarios-interactuados/$usuarioId'),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+
+    if (data is List) {
+      return data
+          .map((item) => int.tryParse(item.toString()))
+          .whereType<int>()
+          .toList();
+    }
+
+    return [];
+  }
+
+  throw Exception(
+    'Error al obtener usuarios interactuados: ${response.statusCode}',
+  );
+}
+
 }
