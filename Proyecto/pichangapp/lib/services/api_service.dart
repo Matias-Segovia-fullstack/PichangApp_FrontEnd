@@ -65,33 +65,30 @@ class ApiService {
 }
 
   /// Realiza la petición de Login.
-  /// Retorna el Token JWT como String si es exitoso, o null si falla.
-Future<String?> loginUsuario(String username, String password) async {
-  try {
-    // Usamos loginUrl, que automáticamente cambia a localhost si estás en la Web
-    final response = await http.post(
-      Uri.parse(loginUrl), 
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        "username": username,
-        "password": password,
-      }),
-    );
+  /// Retorna el mapa completo (token, userId, username) o null si falla.
+  Future<Map<String, dynamic>?> loginUsuario(String username, String password) async {
+    try {
+      // Usamos loginUrl, que automáticamente cambia a localhost si estás en la Web
+      final response = await http.post(
+        Uri.parse(loginUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"username": username, "password": password}),
+      );
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      return data['token'];
-    } else {
-      // Es útil imprimir el código para saber por qué falla (ej. 401 Unauthorized)
-      print("Error de Login: ${response.statusCode} - ${response.body}");
-      return null; 
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data;
+      } else {
+        // Es útil imprimir el código para saber por qué falla (ej. 401 Unauthorized)
+        print("Error de Login: ${response.statusCode} - ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      // Esto capturará el error de conexión si el backend está apagado
+      print("Excepción al intentar loguear: $e");
+      return null;
     }
-  } catch (e) {
-    // Esto capturará el error de conexión si el backend está apagado
-    print("Excepción al intentar loguear: $e");
-    return null;
   }
-}
 
   /// Obtiene la lista de usuarios desde msvc-usuario
   Future<List<dynamic>> getPosiblesMatches() async {
@@ -107,8 +104,9 @@ Future<String?> loginUsuario(String username, String password) async {
         },
       );
 
-      // Usaremos un ID de origen fijo (1) para la demo, asumiendo que es el usuario logueado.
-      final int miPropioId = 1;
+      // Leer el ID propio de manera dinámica
+      String? userIdStr = await storage.read(key: 'user_id');
+      int miPropioId = userIdStr != null ? int.parse(userIdStr) : 0;
 
       // Obtener a los que ya les dio like/dislike
       final interaccionesResponse = await http.get(

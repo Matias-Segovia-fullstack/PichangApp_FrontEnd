@@ -40,14 +40,18 @@ class AuthController {
     String password = passwordController.text;
 
     if (username.isNotEmpty && password.isNotEmpty) {
-      String? token = await _apiService.loginUsuario(username, password);
+      Map<String, dynamic>? data = await _apiService.loginUsuario(username, password);
       
-      // 2. Si el login fue exitoso, guardamos el token bajo llave
-      if (token != null) {
+      // 2. Si el login fue exitoso, guardamos el token y el userId bajo llave
+      if (data != null && data['token'] != null) {
+        String token = data['token'];
+        String userId = data['userId'].toString();
+        
         await _storage.write(key: 'jwt_token', value: token);
+        await _storage.write(key: 'user_id', value: userId);
+        
+        return token;
       }
-      
-      return token; 
     }
     return null;
   }
@@ -55,6 +59,7 @@ class AuthController {
   // 3. Nueva función para cuando el usuario quiera cerrar sesión
   Future<void> logout() async {
     await _storage.delete(key: 'jwt_token');
+    await _storage.delete(key: 'user_id');
   }
 
   void dispose() {

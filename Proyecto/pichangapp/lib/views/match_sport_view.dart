@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/deportista.dart';
 import '../services/api_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart' as flutter_secure_storage;
 
 class MatchSportView extends StatefulWidget {
   const MatchSportView({super.key});
@@ -15,27 +16,40 @@ class _MatchSportViewState extends State<MatchSportView> {
   bool _isLoading = true;
   int _indiceActual = 0;
   
-  // Usaremos un ID de origen fijo (1) para la demo, asumiendo que es el usuario logueado.
-  final int _miPropioId = 1; 
+  int _miPropioId = 0; 
 
   @override
   void initState() {
     super.initState();
-    _cargarDeportistas();
+    _cargarIdYDeportistas();
+  }
+
+  Future<void> _cargarIdYDeportistas() async {
+    const storage = flutter_secure_storage.FlutterSecureStorage();
+    String? userIdStr = await storage.read(key: 'user_id');
+    if (userIdStr != null && mounted) {
+      _miPropioId = int.parse(userIdStr);
+    }
+    await _cargarDeportistas();
   }
 
   Future<void> _cargarDeportistas() async {
     final List<dynamic> users = await _apiService.getPosiblesMatches();
     setState(() {
       _deportistas = users.where((u) => u['id'] != _miPropioId).map((u) {
+        final profile = u['profile'];
+        final atributos = profile != null ? profile['atributosDeportivos'] : null;
+
         return Deportista(
           id: u['id'] ?? 0,
           nombre: u['nombre'] ?? 'Sin nombre',
-          edad: 25, // Datos de relleno hasta tener perfil completo
-          deporte: "Deporte", 
-          altura: 1.75,
-          nivel: "Amateur",
-          fotoUrl: "https://via.placeholder.com/400x500.png?text=${u['nombre'] ?? 'User'}",
+          edad: profile != null && profile['edad'] != null ? profile['edad'] : 25,
+          deporte: profile != null && profile['deportePrincipal'] != null ? profile['deportePrincipal'] : "Deporte General", 
+          altura: atributos != null && atributos['altura'] != null ? (atributos['altura'] as num).toDouble() : 1.75,
+          nivel: atributos != null && atributos['nivel'] != null ? atributos['nivel'] : "Amateur",
+          fotoUrl: profile != null && profile['fotoUrl'] != null 
+              ? profile['fotoUrl'] 
+              : "https://via.placeholder.com/400x500.png?text=${u['nombre'] ?? 'User'}",
         );
       }).toList();
       _isLoading = false;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../controllers/chat_controller.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart' as flutter_secure_storage;
 
 class ChatDetailView extends StatefulWidget {
   final MatchChat chat; // Recibe toda la info del usuario con el que hacemos match
@@ -14,12 +15,24 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   final _chatController = ChatController();
   final _messageInputController = TextEditingController();
   late Future<List<ChatMessage>> _mensajesFuture;
+  int _miPropioId = 0;
 
   @override
   void initState() {
     super.initState();
+    _cargarPropioId();
     // Cargamos los mensajes ESPECÍFICOS de esta sala de chat
     _mensajesFuture = _chatController.obtenerMensajesPorChat(widget.chat.chatId);
+  }
+
+  void _cargarPropioId() async {
+    const storage = flutter_secure_storage.FlutterSecureStorage();
+    String? userIdStr = await storage.read(key: 'user_id');
+    if (userIdStr != null && mounted) {
+      setState(() {
+        _miPropioId = int.parse(userIdStr);
+      });
+    }
   }
 
   void _enviarMensaje() async {
@@ -80,7 +93,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   itemBuilder: (context, index) {
                     final mensaje = mensajes[index];
                     // Comprobamos si el mensaje lo envié yo o la otra persona
-                    final isMe = mensaje.senderId == _chatController.miPropioId;
+                    final isMe = mensaje.senderId == _miPropioId;
 
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,

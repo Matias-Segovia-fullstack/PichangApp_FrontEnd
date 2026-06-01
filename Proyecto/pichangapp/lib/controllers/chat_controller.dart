@@ -1,4 +1,5 @@
 import '../services/api_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // 1. Modelo que mapea la respuesta de tu base de datos para la lista de chats
 class MatchChat {
@@ -39,9 +40,17 @@ class ChatMessage {
 // 3. Controlador unificado que gestiona toda la lógica
 class ChatController {
   final ApiService _apiService = ApiService();
-  final int miPropioId = 1; // Usando 1 para la demo
+  final _storage = const FlutterSecureStorage();
+
+  Future<int> _getMiPropioId() async {
+    String? userIdStr = await _storage.read(key: 'user_id');
+    return userIdStr != null ? int.parse(userIdStr) : 0;
+  }
 
   Future<List<MatchChat>> obtenerChatsDelBackend() async {
+    int miPropioId = await _getMiPropioId();
+    if (miPropioId == 0) return [];
+
     final salas = await _apiService.getUserRooms(miPropioId);
     List<MatchChat> chats = [];
 
@@ -89,6 +98,9 @@ class ChatController {
   }
 
   Future<bool> enviarMensaje(String chatId, String texto) async {
+    int miPropioId = await _getMiPropioId();
+    if (miPropioId == 0) return false;
+
     int salaIdInt = int.tryParse(chatId) ?? 0;
     return await _apiService.enviarMensaje(salaIdInt, miPropioId, texto);
   }

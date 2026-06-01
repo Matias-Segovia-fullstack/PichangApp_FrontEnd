@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../controllers/auth_controller.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'login_view.dart';
 
 class ProfileView extends StatefulWidget {
@@ -13,16 +14,24 @@ class ProfileView extends StatefulWidget {
 class _ProfileViewState extends State<ProfileView> {
   final ApiService _apiService = ApiService();
   final AuthController _authController = AuthController();
+  final _storage = const FlutterSecureStorage();
   
-  // Usamos el mismo ID estático de la demo (1)
-  final int miPropioId = 1;
-
   Future<Map<String, dynamic>?>? _perfilFuture;
 
   @override
   void initState() {
     super.initState();
-    _perfilFuture = _apiService.getUsuario(miPropioId);
+    _loadProfile();
+  }
+
+  void _loadProfile() async {
+    String? userIdStr = await _storage.read(key: 'user_id');
+    if (userIdStr != null) {
+      int userId = int.parse(userIdStr);
+      setState(() {
+        _perfilFuture = _apiService.getUsuario(userId);
+      });
+    }
   }
 
   void _cerrarSesion() async {
@@ -70,6 +79,10 @@ class _ProfileViewState extends State<ProfileView> {
           final String apellido = user['apellido'] ?? '';
           final String username = user['username'] ?? '@usuario';
           final String email = user['email'] ?? 'correo@ejemplo.com';
+          
+          final profile = user['profile'];
+          final String deporte = profile != null && profile['deportePrincipal'] != null ? profile['deportePrincipal'] : 'No definido';
+          final String foto = profile != null && profile['fotoUrl'] != null ? profile['fotoUrl'] : 'https://via.placeholder.com/150?text=$nombre';
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -81,7 +94,7 @@ class _ProfileViewState extends State<ProfileView> {
                 CircleAvatar(
                   radius: 60,
                   backgroundColor: Colors.blue.shade100,
-                  backgroundImage: NetworkImage('https://via.placeholder.com/150?text=$nombre'),
+                  backgroundImage: NetworkImage(foto),
                 ),
                 const SizedBox(height: 16),
                 // Nombre completo
@@ -109,7 +122,7 @@ class _ProfileViewState extends State<ProfileView> {
                         const Divider(height: 32),
                         _buildInfoRow(Icons.person, 'Nombre de Usuario', username),
                         const Divider(height: 32),
-                        _buildInfoRow(Icons.sports_soccer, 'Deporte Favorito', 'Fútbol (Demo)'),
+                        _buildInfoRow(Icons.sports_soccer, 'Deporte Principal', deporte),
                       ],
                     ),
                   ),
