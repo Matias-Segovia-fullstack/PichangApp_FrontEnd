@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
+import '../services/media_service.dart';
 import 'login_view.dart';
 
 class ProfileView extends StatefulWidget {
@@ -12,11 +13,13 @@ class ProfileView extends StatefulWidget {
 
 class _ProfileViewState extends State<ProfileView> {
   final ApiService _apiService = ApiService();
+  final MediaService _mediaService = MediaService();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   bool _isLoading = true;
   String? _error;
   Map<String, dynamic>? _usuario;
+  String? _fotoPerfilUrl;
 
   @override
   void initState() {
@@ -69,6 +72,33 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  Future<void> _subirFotoPerfil() async {
+    final userId = _usuario?['id']?.toString();
+    if (userId == null) return;
+
+    try {
+      final url = await _mediaService.pickCompressAndUploadImage(
+        bucket: 'user-media',
+        folder: 'perfil_$userId',
+      );
+
+      if (url != null && url.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _fotoPerfilUrl = url;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto de perfil actualizada temporalmente. Falta endpoint en backend.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al subir foto: $e')),
+      );
+    }
+  }
+
   String _texto(dynamic value) {
     if (value == null) return 'No definido';
     return value.toString();
@@ -103,13 +133,40 @@ class _ProfileViewState extends State<ProfileView> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          CircleAvatar(
-            radius: 46,
-            backgroundColor: Colors.blue[100],
-            child: const Icon(
-              Icons.person,
-              size: 56,
-              color: Colors.blue,
+          Center(
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 46,
+                  backgroundColor: Colors.blue[100],
+                  backgroundImage: _fotoPerfilUrl != null ? NetworkImage(_fotoPerfilUrl!) : null,
+                  child: _fotoPerfilUrl == null
+                      ? const Icon(
+                          Icons.person,
+                          size: 56,
+                          color: Colors.blue,
+                        )
+                      : null,
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: InkWell(
+                      onTap: _subirFotoPerfil,
+                      child: const Padding(
+                        padding: EdgeInsets.all(6.0),
+                        child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
