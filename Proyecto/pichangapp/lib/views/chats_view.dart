@@ -20,6 +20,7 @@ class _ChatsViewState extends State<ChatsView> {
   String? _token;
   int? _miUsuarioId;
   List<SalaChat> _salas = [];
+  Map<int, bool> _salasBloqueadas = {};
 
   @override
   void initState() {
@@ -58,12 +59,27 @@ class _ChatsViewState extends State<ChatsView> {
           .where((sala) => sala.id != 0)
           .toList();
 
+      final Map<int, bool> bloqueos = {};
+      for (final sala in salas) {
+        final otroUsuarioId = sala.obtenerOtroUsuarioId(userId);
+        if (otroUsuarioId != 0) {
+          final existeBloqueo = await _apiService.existeBloqueoEntreUsuarios(
+            usuarioAId: userId,
+            usuarioBId: otroUsuarioId,
+          );
+          bloqueos[sala.id] = existeBloqueo;
+        } else {
+          bloqueos[sala.id] = false;
+        }
+      }
+
       if (!mounted) return;
 
       setState(() {
         _token = token;
         _miUsuarioId = userId;
         _salas = salas;
+        _salasBloqueadas = bloqueos;
         _isLoading = false;
       });
     } catch (e) {
@@ -148,19 +164,21 @@ class _ChatsViewState extends State<ChatsView> {
         itemBuilder: (context, index) {
           final sala = _salas[index];
           final otroUsuarioId = sala.obtenerOtroUsuarioId(miUsuarioId);
+          final bool esBloqueada = _salasBloqueadas[sala.id] ?? false;
 
           return Card(
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: Colors.blue[100],
-                child: const Icon(Icons.person, color: Colors.blue),
+                backgroundColor: esBloqueada ? Colors.red[100] : Colors.blue[100],
+                child: Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
               ),
               title: Text(
                 'Chat con usuario $otroUsuarioId',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
-                'Sala ${sala.id} · Match ${sala.matchSocialId} · ${sala.estado}',
+                'Sala ${sala.id} · Match ${sala.matchSocialId} · ${esBloqueada ? '[🔒 Chat Bloqueado]' : sala.estado}',
+                style: esBloqueada ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) : null,
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {

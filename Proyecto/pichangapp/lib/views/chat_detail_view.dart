@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/mensaje_chat.dart';
 import '../models/sala_chat.dart';
 import '../services/api_service.dart';
+import '../services/media_service.dart';
 
 class ChatDetailView extends StatefulWidget {
   final SalaChat sala;
@@ -21,6 +22,7 @@ class ChatDetailView extends StatefulWidget {
 
 class _ChatDetailViewState extends State<ChatDetailView> {
   final ApiService _apiService = ApiService();
+  final MediaService _mediaService = MediaService();
   final TextEditingController _messageController = TextEditingController();
 
   bool _isLoading = true;
@@ -143,6 +145,54 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     });
   }
 
+  Future<void> _subirImagen() async {
+    if (_usuarioBloqueado) return;
+
+    try {
+      final url = await _mediaService.pickCompressAndUploadImage(
+        bucket: 'chat-media',
+        folder: 'sala_${widget.sala.id}',
+      );
+
+      if (url != null && url.isNotEmpty && mounted) {
+        setState(() {
+          _isSending = true;
+        });
+
+        final enviado = await _apiService.enviarMensaje(
+          salaId: widget.sala.id,
+          remitenteId: widget.miUsuarioId,
+          contenido: url,
+          token: widget.token,
+        );
+
+        if (!mounted) return;
+
+        if (enviado) {
+          await _cargarMensajes();
+        } else {
+          await _verificarBloqueoExistente();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No se pudo enviar la imagen. Puede existir un bloqueo.',
+              ),
+            ),
+          );
+        }
+
+        setState(() {
+          _isSending = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al subir imagen: $e')),
+      );
+    }
+  }
+
   Future<void> _confirmarBloqueo() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -225,6 +275,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   Widget _mensajeBubble(MensajeChat mensaje) {
     final esMio = mensaje.remitenteId == widget.miUsuarioId;
+    final esImagen = mensaje.contenido.startsWith('http') && 
+                     mensaje.contenido.contains('supabase.co/storage');
 
     return Align(
       alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
@@ -240,13 +292,25 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           crossAxisAlignment:
               esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(
-              mensaje.contenido,
-              style: TextStyle(
-                color: esMio ? Colors.white : Colors.black,
-                fontSize: 15,
+            if (esImagen)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  mensaje.contenido,
+                  width: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Text('Error al cargar imagen', style: TextStyle(color: Colors.red)),
+                ),
+              )
+            else
+              Text(
+                mensaje.contenido,
+                style: TextStyle(
+                  color: esMio ? Colors.white : Colors.black,
+                  fontSize: 15,
+                ),
               ),
-            ),
             const SizedBox(height: 4),
             Text(
               'Usuario ${mensaje.remitenteId}',
@@ -346,7 +410,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 maxLines: 4,
               ),
             ),
-            const SizedBox(width: 8),
+            IconButton(
+              onPressed: _isSending ? null : _subirImagen,
+              icon: const Icon(Icons.camera_alt, color: Colors.grey),
+            ),
+            const SizedBox(width: 4),
             IconButton.filled(
               onPressed: _isSending ? null : _enviarMensaje,
               icon: _isSending
