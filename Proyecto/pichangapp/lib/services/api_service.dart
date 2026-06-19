@@ -245,6 +245,8 @@ class ApiService {
     required int salaId,
     required int remitenteId,
     required String contenido,
+    String? tipoMensaje,
+    String? mediaUrl,
     required String token,
   }) async {
     try {
@@ -258,6 +260,8 @@ class ApiService {
             body: jsonEncode({
               'remitenteId': remitenteId,
               'contenido': contenido,
+              'tipoMensaje': tipoMensaje ?? 'TEXTO',
+              'mediaUrl': mediaUrl,
             }),
           )
           .timeout(const Duration(seconds: 10));

@@ -3,6 +3,8 @@ class MensajeChat {
   final int salaChatId;
   final int remitenteId;
   final String contenido;
+  final String? tipoMensaje;
+  final String? mediaUrl;
   final String fechaEnvio;
 
   MensajeChat({
@@ -10,6 +12,8 @@ class MensajeChat {
     required this.salaChatId,
     required this.remitenteId,
     required this.contenido,
+    this.tipoMensaje,
+    this.mediaUrl,
     required this.fechaEnvio,
   });
 
@@ -19,6 +23,8 @@ class MensajeChat {
       salaChatId: json['salaChatId'] ?? 0,
       remitenteId: json['remitenteId'] ?? 0,
       contenido: json['contenido']?.toString() ?? '',
+      tipoMensaje: json['tipoMensaje']?.toString(),
+      mediaUrl: json['mediaUrl']?.toString(),
       fechaEnvio: json['fechaEnvio']?.toString() ?? '',
     );
   }

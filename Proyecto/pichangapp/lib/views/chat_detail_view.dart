@@ -162,7 +162,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         final enviado = await _apiService.enviarMensaje(
           salaId: widget.sala.id,
           remitenteId: widget.miUsuarioId,
-          contenido: url,
+          contenido: '[Imagen]',
+          tipoMensaje: 'IMAGEN',
+          mediaUrl: url,
           token: widget.token,
         );
 
@@ -275,8 +277,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   Widget _mensajeBubble(MensajeChat mensaje) {
     final esMio = mensaje.remitenteId == widget.miUsuarioId;
-    final esImagen = mensaje.contenido.startsWith('http') && 
-                     mensaje.contenido.contains('supabase.co/storage');
+    final esImagen = mensaje.tipoMensaje == 'IMAGEN' || 
+                     (mensaje.mediaUrl != null && mensaje.mediaUrl!.isNotEmpty) ||
+                     (mensaje.contenido.startsWith('http') && mensaje.contenido.contains('supabase.co/storage'));
 
     return Align(
       alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
@@ -296,7 +299,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
-                  mensaje.contenido,
+                  mensaje.mediaUrl ?? mensaje.contenido,
                   width: 200,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) =>
