@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../models/mensaje_chat.dart';
 import '../models/sala_chat.dart';
 import '../services/api_service.dart';
@@ -30,6 +32,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   bool _isBlocking = false;
   bool _usuarioBloqueado = false;
 
+  StompClient? _stompClient;
+
   String? _error;
   List<MensajeChat> _mensajes = [];
 
@@ -45,6 +49,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   @override
   void dispose() {
+    _stompClient?.deactivate();
     _messageController.dispose();
     super.dispose();
   }
@@ -52,6 +57,44 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   Future<void> _inicializarChat() async {
     await _verificarBloqueoExistente();
     await _cargarMensajes();
+    _conectarWebSocket();
+  }
+
+  void _conectarWebSocket() {
+    _stompClient = StompClient(
+      config: StompConfig(
+        url: '${ApiService.comunicacionWsBaseUrl}/ws/websocket',
+        onConnect: _onConnectWebSocket,
+        beforeConnect: () async {
+          debugPrint('Iniciando conexión WebSocket...');
+        },
+        onWebSocketError: (dynamic error) => debugPrint('Error WebSocket: ${error.toString()}'),
+        stompConnectHeaders: {'Authorization': 'Bearer ${widget.token}'},
+        webSocketConnectHeaders: {'Authorization': 'Bearer ${widget.token}'},
+      ),
+    );
+    _stompClient?.activate();
+  }
+
+  void _onConnectWebSocket(StompFrame frame) {
+    debugPrint('Conectado a WebSocket STOMP');
+    _stompClient?.subscribe(
+      destination: '/topic/sala/${widget.sala.id}',
+      callback: (frame) {
+        if (frame.body != null) {
+          final data = json.decode(frame.body!);
+          final nuevoMensaje = MensajeChat.fromJson(data);
+          
+          if (mounted) {
+            setState(() {
+              if (!_mensajes.any((m) => m.id == nuevoMensaje.id)) {
+                _mensajes.insert(0, nuevoMensaje);
+              }
+            });
+          }
+        }
+      },
+    );
   }
 
   Future<void> _verificarBloqueoExistente() async {

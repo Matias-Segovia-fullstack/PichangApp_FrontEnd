@@ -23,6 +23,12 @@ class ApiService {
     return 'http://127.0.0.1:8082';
   }
 
+  static String get comunicacionWsBaseUrl {
+    if (kIsWeb) return 'ws://127.0.0.1:8082';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'ws://10.0.2.2:8082';
+    return 'ws://127.0.0.1:8082';
+  }
+
   static String get seguridadBaseUrl {
     if (kIsWeb) return 'http://127.0.0.1:8004';
     if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8004';
