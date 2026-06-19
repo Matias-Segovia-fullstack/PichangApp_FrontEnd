@@ -314,6 +314,36 @@ class ApiService {
     }
   }
 
+  Future<bool> actualizarPerfilUsuario({
+  required String token,
+  required dynamic userId,
+  required Map<String, dynamic> datosActualizacion,
+}) async {
+  try {
+    final response = await http
+        .put(
+          Uri.parse('$usuarioBaseUrl/api/users/$userId/profile'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(datosActualizacion),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return true;
+    }
+
+    debugPrint('Error actualizar perfil: ${response.statusCode}');
+    debugPrint('Respuesta backend: ${response.body}');
+    return false;
+  } catch (e) {
+    debugPrint('Error cliente actualizar perfil: $e');
+    return false;
+  }
+}
+
   Future<bool> existeBloqueoEntreUsuarios({
     required int usuarioAId,
     required int usuarioBId,
