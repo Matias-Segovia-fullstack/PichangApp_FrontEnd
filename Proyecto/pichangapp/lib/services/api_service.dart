@@ -109,6 +109,32 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>?> obtenerUsuarioPorId({
+    required int usuarioId,
+    required String token,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$usuarioBaseUrl/api/users/$usuarioId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+
+      debugPrint('Error obtener usuario por id: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      debugPrint('Error cliente obtener usuario por id: $e');
+      return null;
+    }
+  }
+
   Future<List<dynamic>> descubrirUsuarios({
     required int excludeId,
     required String token,

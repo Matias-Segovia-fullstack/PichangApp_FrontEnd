@@ -21,6 +21,7 @@ class _ChatsViewState extends State<ChatsView> {
   int? _miUsuarioId;
   List<SalaChat> _salas = [];
   Map<int, bool> _salasBloqueadas = {};
+  Map<int, String> _nombresUsuarios = {};
 
   @override
   void initState() {
@@ -60,6 +61,7 @@ class _ChatsViewState extends State<ChatsView> {
           .toList();
 
       final Map<int, bool> bloqueos = {};
+      final Map<int, String> nombres = {};
       for (final sala in salas) {
         final otroUsuarioId = sala.obtenerOtroUsuarioId(userId);
         if (otroUsuarioId != 0) {
@@ -68,8 +70,26 @@ class _ChatsViewState extends State<ChatsView> {
             usuarioBId: otroUsuarioId,
           );
           bloqueos[sala.id] = existeBloqueo;
+
+          final otroUsuario = await _apiService.obtenerUsuarioPorId(
+            usuarioId: otroUsuarioId,
+            token: token,
+          );
+          
+          if (otroUsuario != null && otroUsuario['nombre'] != null) {
+            String nombreMostrado = otroUsuario['nombre'].toString();
+            if (otroUsuario['apellido'] != null) {
+              nombreMostrado += ' ${otroUsuario['apellido']}';
+            }
+            nombres[otroUsuarioId] = nombreMostrado;
+          } else if (otroUsuario != null && otroUsuario['username'] != null) {
+            nombres[otroUsuarioId] = otroUsuario['username'].toString();
+          } else {
+            nombres[otroUsuarioId] = 'Usuario $otroUsuarioId';
+          }
         } else {
           bloqueos[sala.id] = false;
+          nombres[0] = 'Usuario Desconocido';
         }
       }
 
@@ -80,6 +100,7 @@ class _ChatsViewState extends State<ChatsView> {
         _miUsuarioId = userId;
         _salas = salas;
         _salasBloqueadas = bloqueos;
+        _nombresUsuarios = nombres;
         _isLoading = false;
       });
     } catch (e) {
@@ -165,6 +186,7 @@ class _ChatsViewState extends State<ChatsView> {
           final sala = _salas[index];
           final otroUsuarioId = sala.obtenerOtroUsuarioId(miUsuarioId);
           final bool esBloqueada = _salasBloqueadas[sala.id] ?? false;
+          final String nombreUsuario = _nombresUsuarios[otroUsuarioId] ?? 'Usuario $otroUsuarioId';
 
           return Card(
             child: ListTile(
@@ -173,7 +195,7 @@ class _ChatsViewState extends State<ChatsView> {
                 child: Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
               ),
               title: Text(
-                'Chat con usuario $otroUsuarioId',
+                nombreUsuario,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
@@ -216,7 +238,7 @@ class _ChatsViewState extends State<ChatsView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chats reales'),
+        title: const Text('Chats'),
         actions: [
           IconButton(
             onPressed: _cargarSalas,
