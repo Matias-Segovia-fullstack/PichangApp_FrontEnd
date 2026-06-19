@@ -31,47 +31,58 @@ class MediaService {
 
       final File fileToUpload = File(pickedFile.path);
       
-      // 2. Comprimir y convertir a WebP
-      final tempDir = await getTemporaryDirectory();
-      final String targetPath = '${tempDir.path}/img_${DateTime.now().millisecondsSinceEpoch}.webp';
-
-      debugPrint('Iniciando compresión de imagen a WebP...');
-      final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
-        fileToUpload.absolute.path,
-        targetPath,
-        format: CompressFormat.webp,
-        quality: quality,
-      );
-
-      if (compressedFile == null) {
-        throw Exception('Error al comprimir la imagen');
-      }
-
-      final File finalImage = File(compressedFile.path);
-      debugPrint('Compresión completada. Tamaño final: ${await finalImage.length()} bytes');
-
       // 3. Generar un nombre único de archivo
-      final String fileExtension = 'webp';
+      final String fileExtension = kIsWeb ? pickedFile.name.split('.').last : 'webp';
       final String fileName = '${DateTime.now().microsecondsSinceEpoch}.$fileExtension';
       final String uploadPath = '$folder/$fileName';
 
-      // 4. Subir a Supabase Storage
-      debugPrint('Subiendo imagen a Supabase: $uploadPath');
-      await _supabase.storage.from(bucket).upload(
-            uploadPath,
-            finalImage,
-            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
-          );
+      if (kIsWeb) {
+        // COMPORTAMIENTO WEB: Trabajar directamente en memoria (bytes)
+        final Uint8List fileBytes = await pickedFile.readAsBytes();
+        
+        debugPrint('Subiendo imagen desde Web a Supabase: $uploadPath');
+        await _supabase.storage.from(bucket).uploadBinary(
+              uploadPath,
+              fileBytes,
+              fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+            );
+      } else {
+        // COMPORTAMIENTO MÓVIL: Comprimir usando paths nativos
+        final tempDir = await getTemporaryDirectory();
+        final String targetPath = '${tempDir.path}/img_${DateTime.now().millisecondsSinceEpoch}.webp';
+
+        debugPrint('Iniciando compresión de imagen a WebP...');
+        final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
+          fileToUpload.absolute.path,
+          targetPath,
+          format: CompressFormat.webp,
+          quality: quality,
+        );
+
+        if (compressedFile == null) {
+          throw Exception('Error al comprimir la imagen');
+        }
+
+        final File finalImage = File(compressedFile.path);
+        debugPrint('Compresión completada. Tamaño final: ${await finalImage.length()} bytes');
+
+        debugPrint('Subiendo imagen a Supabase: $uploadPath');
+        await _supabase.storage.from(bucket).upload(
+              uploadPath,
+              finalImage,
+              fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+            );
+
+        // Limpieza local del archivo temporal
+        try {
+          await finalImage.delete();
+        } catch (_) {}
+      }
 
       // 5. Obtener y retornar la URL pública
       final String publicUrl = _supabase.storage.from(bucket).getPublicUrl(uploadPath);
       debugPrint('Subida exitosa. URL Pública: $publicUrl');
       
-      // Limpieza local del archivo temporal
-      try {
-        await finalImage.delete();
-      } catch (_) {}
-
       return publicUrl;
     } catch (e) {
       debugPrint('Error en pickCompressAndUploadImage: $e');
