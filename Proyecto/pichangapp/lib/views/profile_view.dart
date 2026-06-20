@@ -47,6 +47,9 @@ class _ProfileViewState extends State<ProfileView> {
 
       setState(() {
         _usuario = usuario;
+        if (usuario != null && usuario['profile'] != null) {
+          _fotoPerfilUrl = usuario['profile']['fotoUrl'];
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -103,10 +106,38 @@ class _ProfileViewState extends State<ProfileView> {
       );
 
       if (url != null && url.isNotEmpty) {
+        final token = await _storage.read(key: 'jwt_token');
+        if (token != null) {
+          final profileData = Map<String, dynamic>.from(_usuario?['profile'] ?? {});
+          profileData['fotoUrl'] = url;
+
+          final success = await _apiService.actualizarPerfilUsuario(
+            token: token,
+            userId: userId,
+            datosActualizacion: profileData,
+          );
+          
+          if (!success) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Error: No se pudo guardar la foto en el servidor.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+        }
+
         if (!mounted) return;
         setState(() {
           _fotoPerfilUrl = url;
+          if (_usuario != null) {
+            _usuario!['profile'] ??= {};
+            _usuario!['profile']['fotoUrl'] = url;
+          }
         });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Foto de perfil actualizada'),

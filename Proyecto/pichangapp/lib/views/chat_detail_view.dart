@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/mensaje_chat.dart';
 import '../models/sala_chat.dart';
 import '../services/api_service.dart';
@@ -32,7 +32,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   bool _isBlocking = false;
   bool _usuarioBloqueado = false;
 
-  StompClient? _stompClient;
+  RealtimeChannel? _realtimeChannel;
 
   String? _error;
   List<MensajeChat> _mensajes = [];
@@ -49,7 +49,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   @override
   void dispose() {
-    _stompClient?.deactivate();
+    _realtimeChannel?.unsubscribe();
     _messageController.dispose();
     super.dispose();
   }
@@ -61,40 +61,45 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   void _conectarWebSocket() {
-    _stompClient = StompClient(
-      config: StompConfig(
-        url: '${ApiService.comunicacionWsBaseUrl}/ws/websocket',
-        onConnect: _onConnectWebSocket,
-        beforeConnect: () async {
-          debugPrint('Iniciando conexión WebSocket...');
-        },
-        onWebSocketError: (dynamic error) => debugPrint('Error WebSocket: ${error.toString()}'),
-        stompConnectHeaders: {'Authorization': 'Bearer ${widget.token}'},
-        webSocketConnectHeaders: {'Authorization': 'Bearer ${widget.token}'},
-      ),
-    );
-    _stompClient?.activate();
-  }
+    debugPrint('Iniciando conexión Supabase Realtime para sala ${widget.sala.id}');
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:mensajes_chat:sala_${widget.sala.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'mensajes_chat',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'sala_id',
+            value: widget.sala.id,
+          ),
+          callback: (payload) {
+            debugPrint('Nuevo mensaje recibido vía Supabase Realtime');
+            final data = payload.newRecord;
+            
+            // Adaptar las claves si vienen en snake_case desde la base de datos
+            final mensajeMap = {
+              'id': data['id'],
+              'salaChatId': data['sala_id'],
+              'remitenteId': data['remitente_id'],
+              'contenido': data['contenido'],
+              'tipoMensaje': data['tipo_mensaje'],
+              'mediaUrl': data['media_url'],
+              'fechaEnvio': data['fecha_envio'],
+            };
+            
+            final nuevoMensaje = MensajeChat.fromJson(mensajeMap);
 
-  void _onConnectWebSocket(StompFrame frame) {
-    debugPrint('Conectado a WebSocket STOMP');
-    _stompClient?.subscribe(
-      destination: '/topic/sala/${widget.sala.id}',
-      callback: (frame) {
-        if (frame.body != null) {
-          final data = json.decode(frame.body!);
-          final nuevoMensaje = MensajeChat.fromJson(data);
-          
-          if (mounted) {
-            setState(() {
-              if (!_mensajes.any((m) => m.id == nuevoMensaje.id)) {
-                _mensajes.insert(0, nuevoMensaje);
-              }
-            });
-          }
-        }
-      },
-    );
+            if (mounted) {
+              setState(() {
+                if (!_mensajes.any((m) => m.id == nuevoMensaje.id)) {
+                  _mensajes.insert(0, nuevoMensaje);
+                }
+              });
+            }
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _verificarBloqueoExistente() async {
