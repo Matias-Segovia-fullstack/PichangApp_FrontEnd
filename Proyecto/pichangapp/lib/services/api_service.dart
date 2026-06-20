@@ -5,35 +5,31 @@ import 'package:http/http.dart' as http;
 import '../models/login_response.dart';
 
 class ApiService {
+  // Cambiar a '168.129.178.109' para la nube, o '127.0.0.1' / '10.0.2.2' para local
+  static const String _serverIp = '168.129.178.109';
+
   static String get usuarioBaseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:8001';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8001';
-    return 'http://127.0.0.1:8001';
+    return 'http://$_serverIp:8001';
   }
 
   static String get matchBaseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:8081';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8081';
-    return 'http://127.0.0.1:8081';
+    return 'http://$_serverIp:8081';
   }
 
   static String get comunicacionBaseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:8082';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8082';
-    return 'http://127.0.0.1:8082';
+    return 'http://$_serverIp:8082';
   }
 
+  // Nota: Ya no se usa WebSocket directo debido a la migración a Supabase Realtime,
+  // pero lo dejamos por compatibilidad.
   static String get comunicacionWsBaseUrl {
-    if (kIsWeb) return 'ws://127.0.0.1:8082';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'ws://10.0.2.2:8082';
-    return 'ws://127.0.0.1:8082';
+    return 'ws://$_serverIp:8082';
   }
 
   static String get seguridadBaseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:8004';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8004';
-    return 'http://127.0.0.1:8004';
+    return 'http://$_serverIp:8004';
   }
+
 
   Future<bool> registrarUsuario(Map<String, dynamic> userData) async {
     try {

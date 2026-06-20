@@ -9,7 +9,8 @@ void main() async {
 
   await Supabase.initialize(
     url: 'https://pqukomxvkdmxceywkltx.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxdWtvbXh2a2RteGNleXdrbHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNjY3OTAsImV4cCI6MjA5NTc0Mjc5MH0.EALqagSTlT_eGBEHc1Z48-tHEqDPigPbckWBR3SMwAQ',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxdWtvbXh2a2RteGNleXdrbHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNjY3OTAsImV4cCI6MjA5NTc0Mjc5MH0.EALqagSTlT_eGBEHc1Z48-tHEqDPigPbckWBR3SMwAQ',
   );
 
   runApp(const PichangApp());
@@ -41,9 +42,7 @@ class PichangApp extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
+              body: Center(child: CircularProgressIndicator()),
             );
           }
 

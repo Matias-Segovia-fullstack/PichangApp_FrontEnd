@@ -31,20 +31,27 @@ class MediaService {
 
       final File fileToUpload = File(pickedFile.path);
       
-      // 3. Generar un nombre único de archivo
-      final String fileExtension = kIsWeb ? pickedFile.name.split('.').last : 'webp';
-      final String fileName = '${DateTime.now().microsecondsSinceEpoch}.$fileExtension';
+      final String fileName = '${DateTime.now().microsecondsSinceEpoch}.webp';
       final String uploadPath = '$folder/$fileName';
 
       if (kIsWeb) {
         // COMPORTAMIENTO WEB: Trabajar directamente en memoria (bytes)
         final Uint8List fileBytes = await pickedFile.readAsBytes();
         
-        debugPrint('Subiendo imagen desde Web a Supabase: $uploadPath');
+        debugPrint('Iniciando compresión de imagen a WebP en Web...');
+        final Uint8List compressedBytes = await FlutterImageCompress.compressWithList(
+          fileBytes,
+          minHeight: 1080,
+          minWidth: 1080,
+          quality: quality,
+          format: CompressFormat.webp,
+        );
+
+        debugPrint('Subiendo imagen comprimida desde Web a Supabase: $uploadPath');
         await _supabase.storage.from(bucket).uploadBinary(
               uploadPath,
-              fileBytes,
-              fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+              compressedBytes,
+              fileOptions: const FileOptions(cacheControl: '3600', upsert: false, contentType: 'image/webp'),
             );
       } else {
         // COMPORTAMIENTO MÓVIL: Comprimir usando paths nativos
@@ -70,7 +77,7 @@ class MediaService {
         await _supabase.storage.from(bucket).upload(
               uploadPath,
               finalImage,
-              fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+              fileOptions: const FileOptions(cacheControl: '3600', upsert: false, contentType: 'image/webp'),
             );
 
         // Limpieza local del archivo temporal
