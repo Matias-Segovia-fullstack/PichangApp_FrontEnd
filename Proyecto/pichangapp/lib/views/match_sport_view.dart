@@ -228,7 +228,7 @@ class _MatchSportViewState extends State<MatchSportView> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _btnAccion(Icons.close, Colors.red, () => _enviarInteraccion(tipoDislike)),
-          _btnAccion(Icons.favorite_rounded, Colors.green, () => _enviarInteraccion(tipoLike)),
+          _btnAccion(Icons.sports_soccer, Colors.green, () => _enviarInteraccion(tipoLike)),
         ],
       ),
     );
