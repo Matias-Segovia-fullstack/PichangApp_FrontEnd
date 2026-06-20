@@ -47,27 +47,16 @@ class _MatchSportViewState extends State<MatchSportView> {
       }
 
       final userId = int.tryParse(userIdString);
+      if (userId == null) throw Exception('El ID del usuario no es válido.');
 
-      if (userId == null) {
-        throw Exception('El ID del usuario guardado no es válido.');
-      }
-
-      final usuariosRaw = await _apiService.descubrirUsuarios(
-        excludeId: userId,
-        token: token,
-      );
-
-      final usuariosInteractuados = await _apiService.obtenerUsuariosInteractuados(
-        usuarioId: userId,
-      );
-
+      final usuariosRaw = await _apiService.descubrirUsuarios(excludeId: userId, token: token);
+      final usuariosInteractuados = await _apiService.obtenerUsuariosInteractuados(usuarioId: userId);
       final usuariosInteractuadosSet = usuariosInteractuados.toSet();
 
       final deportistas = usuariosRaw
           .whereType<Map<String, dynamic>>()
           .map(Deportista.fromJson)
-          .where((deportista) => deportista.id != 0)
-          .where((deportista) => !usuariosInteractuadosSet.contains(deportista.id))
+          .where((d) => d.id != 0 && !usuariosInteractuadosSet.contains(d.id))
           .toList();
 
       if (!mounted) return;
@@ -79,7 +68,6 @@ class _MatchSportViewState extends State<MatchSportView> {
       });
     } catch (e) {
       if (!mounted) return;
-
       setState(() {
         _error = _limpiarError(e);
         _isLoading = false;
@@ -88,15 +76,10 @@ class _MatchSportViewState extends State<MatchSportView> {
   }
 
   Future<void> _enviarInteraccion(String tipo) async {
-    if (_isSending) return;
-    if (_miUsuarioId == null) return;
-    if (_indiceActual >= _deportistas.length) return;
+    if (_isSending || _miUsuarioId == null || _indiceActual >= _deportistas.length) return;
 
     final deportista = _deportistas[_indiceActual];
-
-    setState(() {
-      _isSending = true;
-    });
+    setState(() => _isSending = true);
 
     try {
       final hayMatch = await _apiService.enviarInteraccion(
@@ -110,88 +93,54 @@ class _MatchSportViewState extends State<MatchSportView> {
       if (hayMatch) {
         await _mostrarMatch(deportista);
       } else {
-        final texto = tipo == tipoLike
-            ? 'Like enviado a ${deportista.nombreCompleto}'
-            : 'Dislike enviado a ${deportista.nombreCompleto}';
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(texto)),
+          SnackBar(content: Text(tipo == tipoLike ? 'Like enviado a ${deportista.nombreCompleto}' : 'Dislike enviado a ${deportista.nombreCompleto}')),
         );
       }
-
       _avanzarTarjeta();
     } catch (e) {
       if (!mounted) return;
-
-      final mensaje = _limpiarError(e);
-
-      final esInteraccionDuplicada =
-          mensaje.toLowerCase().contains('ya ha interactuado') ||
-          mensaje.toLowerCase().contains('conflict') ||
-          mensaje.contains('409');
-
-      if (esInteraccionDuplicada) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ya habías interactuado con este usuario. Se ocultará de la lista.'),
-          ),
-        );
-
+      final mensaje = _limpiarError(e).toLowerCase();
+      
+      if (mensaje.contains('ya ha interactuado') || mensaje.contains('conflict') || mensaje.contains('409')) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ya habías interactuado con este usuario.')));
         _avanzarTarjeta();
         return;
       }
 
-      setState(() {
-        _isSending = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo registrar la interacción: $mensaje'),
-        ),
-      );
+      setState(() => _isSending = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $mensaje')));
     }
   }
 
-  void _avanzarTarjeta() {
-    setState(() {
-      _indiceActual++;
-      _isSending = false;
-    });
-  }
+  void _avanzarTarjeta() => setState(() { _indiceActual++; _isSending = false; });
 
-  String _limpiarError(Object e) {
-    final texto = e.toString();
+  String _limpiarError(Object e) => e.toString().length <= 180 ? e.toString() : '${e.toString().substring(0, 180)}...';
 
-    if (texto.length <= 180) {
-      return texto;
-    }
-
-    return '${texto.substring(0, 180)}...';
-  }
-
-  Future<void> _mostrarMatch(Deportista deportista) async {
+  Future<void> _mostrarMatch(Deportista d) async {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('¡Nuevo MatchSocial!'),
-        content: Text(
-          '${deportista.nombreCompleto} también te dio Like. RabbitMQ debería crear una sala de chat automáticamente.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Continuar'),
-          ),
-        ],
+        content: Text('${d.nombreCompleto} también te dio Like. RabbitMQ debería crear una sala de chat automáticamente.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Continuar'))],
       ),
     );
   }
 
+  // --- UI Estilizada ---
   Widget _infoChip(String texto, IconData icono) {
-    return Chip(
-      avatar: Icon(icono, size: 18),
-      label: Text(texto),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(15)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: 14, color: Colors.blue.shade800),
+          const SizedBox(width: 6),
+          Text(texto, style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 12)),
+        ],
+      ),
     );
   }
 
@@ -200,180 +149,67 @@ class _MatchSportViewState extends State<MatchSportView> {
       children: [
         Expanded(
           child: Card(
-            margin: const EdgeInsets.all(20),
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
-            ),
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            elevation: 10,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30), side: const BorderSide(color: Colors.blue, width: 1.5)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
+                  flex: 3,
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(22),
-                    ),
-                    child: Image.network(
-                      deportista.fotoUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
-                        return Container(
-                          color: Colors.blue[100],
-                          child: const Center(
-                            child: Icon(
-                              Icons.person,
-                              size: 90,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                    child: Image.network(deportista.fotoUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.blue.shade50, child: const Icon(Icons.person, size: 80, color: Colors.blue))),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        deportista.edad > 0
-                            ? '${deportista.nombreCompleto}, ${deportista.edad}'
-                            : deportista.nombreCompleto,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '@${deportista.username}',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          _infoChip(
-                            deportista.deportePrincipal,
-                            Icons.sports_basketball,
-                          ),
-                          _infoChip(
-                            deportista.posicion,
-                            Icons.place,
-                          ),
-                          _infoChip(
-                            deportista.altura,
-                            Icons.height,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        deportista.descripcion,
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                    ],
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(deportista.edad > 0 ? '${deportista.nombreCompleto}, ${deportista.edad}' : deportista.nombreCompleto, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+                        Text('@${deportista.username}', style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _infoChip(deportista.deportePrincipal, Icons.sports_soccer),
+                          _infoChip(deportista.posicion, Icons.place),
+                          _infoChip(deportista.altura, Icons.height),
+                        ]),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 34, top: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              FloatingActionButton(
-                heroTag: 'btn_dislike',
-                onPressed: _isSending
-                    ? null
-                    : () => _enviarInteraccion(tipoDislike),
-                backgroundColor: Colors.white,
-                child: _isSending
-                    ? const CircularProgressIndicator()
-                    : const Icon(Icons.close, size: 34, color: Colors.red),
-              ),
-              FloatingActionButton(
-                heroTag: 'btn_like',
-                onPressed: _isSending
-                    ? null
-                    : () => _enviarInteraccion(tipoLike),
-                backgroundColor: Colors.white,
-                child: _isSending
-                    ? const CircularProgressIndicator()
-                    : const Icon(Icons.favorite, size: 34, color: Colors.green),
-              ),
-            ],
-          ),
-        ),
+        _buildActionButtons(),
       ],
     );
   }
 
-  Widget _estadoVacio() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(26),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.sports, size: 80, color: Colors.blue),
-            const SizedBox(height: 16),
-            const Text(
-              'No hay más deportistas disponibles',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'No quedan usuarios nuevos por descubrir. Puedes crear otro usuario o usar otra cuenta para seguir probando el flujo.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _cargarDeportistas,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Recargar'),
-            ),
-          ],
-        ),
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 40),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _btnAccion(Icons.close, Colors.red, () => _enviarInteraccion(tipoDislike)),
+          _btnAccion(Icons.favorite_rounded, Colors.green, () => _enviarInteraccion(tipoLike)),
+        ],
       ),
     );
   }
 
-  Widget _estadoError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(26),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 70, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text(
-              'No se pudieron cargar deportistas',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _error ?? 'Error desconocido',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _cargarDeportistas,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Intentar nuevamente'),
-            ),
-          ],
-        ),
+  Widget _btnAccion(IconData icon, Color color, VoidCallback onPressed) {
+    return Container(
+      decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))]),
+      child: FloatingActionButton(
+        backgroundColor: Colors.white,
+        onPressed: _isSending ? null : onPressed,
+        child: _isSending ? const CircularProgressIndicator(strokeWidth: 2) : Icon(icon, size: 32, color: color),
       ),
     );
   }
@@ -381,33 +217,23 @@ class _MatchSportViewState extends State<MatchSportView> {
   @override
   Widget build(BuildContext context) {
     Widget body;
-
-    if (_isLoading) {
-      body = const Center(child: CircularProgressIndicator());
-    } else if (_error != null) {
-      body = _estadoError();
-    } else if (_deportistas.isEmpty || _indiceActual >= _deportistas.length) {
-      body = _estadoVacio();
-    } else {
-      body = _construirTarjeta(_deportistas[_indiceActual]);
-    }
+    if (_isLoading) body = const Center(child: CircularProgressIndicator());
+    else if (_error != null) body = _estadoError();
+    else if (_deportistas.isEmpty || _indiceActual >= _deportistas.length) body = _estadoVacio();
+    else body = _construirTarjeta(_deportistas[_indiceActual]);
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text(
-          'Descubrir deportistas',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Descubrir', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: _cargarDeportistas,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+        backgroundColor: Colors.blue,
+        actions: [IconButton(onPressed: _cargarDeportistas, icon: const Icon(Icons.refresh, color: Colors.white))],
       ),
       body: body,
     );
   }
+
+  Widget _estadoVacio() => Center(child: Padding(padding: const EdgeInsets.all(26), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.sports, size: 80, color: Colors.blue), const Text('No hay más deportistas', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)), ElevatedButton.icon(onPressed: _cargarDeportistas, icon: const Icon(Icons.refresh), label: const Text('Recargar'))])));
+  Widget _estadoError() => Center(child: Padding(padding: const EdgeInsets.all(26), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.error_outline, size: 70, color: Colors.red), const Text('Error al cargar', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)), Text(_error ?? ''), ElevatedButton.icon(onPressed: _cargarDeportistas, icon: const Icon(Icons.refresh), label: const Text('Reintentar'))])));
 }
