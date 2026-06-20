@@ -147,29 +147,20 @@ class _MatchSportViewState extends State<MatchSportView> {
   }
 
   Widget _construirTarjeta(Deportista deportista) {
-  return Dismissible(
-    key: ValueKey(deportista.id),
-    direction: DismissDirection.horizontal,
-    onDismissed: (direction) {
-      final tipo = (direction == DismissDirection.endToStart) ? tipoDislike : tipoLike;
-      _enviarInteraccion(tipo);
-    },
-    background: Container(
-      color: Colors.red,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: const Icon(Icons.close, color: Colors.white, size: 50),
-    ),
-    secondaryBackground: Container(
-      color: Colors.green,
-      alignment: Alignment.centerRight,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: const Icon(Icons.favorite, color: Colors.white, size: 50),
-    ),
-    // Faltaba el parámetro 'child:' aquí
-    child: Column(
-      children: [
-        Expanded(
+  return Column(
+    children: [
+      Expanded(
+        child: Dismissible(
+          key: ValueKey(deportista.id),
+          direction: DismissDirection.horizontal,
+          onDismissed: (direction) {
+            final tipo = (direction == DismissDirection.startToEnd) ? tipoLike : tipoDislike;
+            _enviarInteraccion(tipo);
+          },
+          // Pasamos un Container vacío para que no se vea ningún color ni icono
+          background: Container(), 
+          secondaryBackground: Container(),
+          
           child: Card(
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             elevation: 10,
@@ -223,11 +214,12 @@ class _MatchSportViewState extends State<MatchSportView> {
             ),
           ),
         ),
-        _buildActionButtons(),
-      ],
-    ),
+      ),
+      _buildActionButtons(),
+    ],
   );
 }
+
 
   Widget _buildActionButtons() {
     return Padding(
