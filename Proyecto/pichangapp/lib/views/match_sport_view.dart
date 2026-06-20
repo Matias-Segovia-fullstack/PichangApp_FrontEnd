@@ -76,42 +76,44 @@ class _MatchSportViewState extends State<MatchSportView> {
   }
 
   Future<void> _enviarInteraccion(String tipo) async {
-    if (_isSending || _miUsuarioId == null || _indiceActual >= _deportistas.length) return;
+  // Nota: Ya no verificamos _indiceActual aquí porque el Dismissible 
+  // dispara esto para la tarjeta específica que ya está en proceso de irse.
+  if (_miUsuarioId == null) return;
 
-    final deportista = _deportistas[_indiceActual];
-    setState(() => _isSending = true);
+  final deportista = _deportistas[_indiceActual];
+  
+  try {
+    final hayMatch = await _apiService.enviarInteraccion(
+      usuarioOrigenId: _miUsuarioId!,
+      usuarioDestinoId: deportista.id,
+      tipo: tipo,
+    );
 
-    try {
-      final hayMatch = await _apiService.enviarInteraccion(
-        usuarioOrigenId: _miUsuarioId!,
-        usuarioDestinoId: deportista.id,
-        tipo: tipo,
+    if (!mounted) return;
+
+    if (hayMatch) {
+      await _mostrarMatch(deportista);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tipo == tipoLike ? 'Like enviado a ${deportista.nombreCompleto}' : 'Dislike enviado a ${deportista.nombreCompleto}')),
       );
-
-      if (!mounted) return;
-
-      if (hayMatch) {
-        await _mostrarMatch(deportista);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tipo == tipoLike ? 'Like enviado a ${deportista.nombreCompleto}' : 'Dislike enviado a ${deportista.nombreCompleto}')),
-        );
-      }
-      _avanzarTarjeta();
-    } catch (e) {
-      if (!mounted) return;
-      final mensaje = _limpiarError(e).toLowerCase();
-      
-      if (mensaje.contains('ya ha interactuado') || mensaje.contains('conflict') || mensaje.contains('409')) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ya habías interactuado con este usuario.')));
-        _avanzarTarjeta();
-        return;
-      }
-
-      setState(() => _isSending = false);
+    }
+    // Solo avanzamos el estado lógico aquí
+    setState(() => _indiceActual++);
+    
+  } catch (e) {
+    if (!mounted) return;
+    final mensaje = _limpiarError(e).toLowerCase();
+    
+    if (mensaje.contains('ya ha interactuado') || mensaje.contains('conflict') || mensaje.contains('409')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ya habías interactuado con este usuario.')));
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $mensaje')));
     }
+    // Si hay error, obligamos a recargar la lista para recuperar la coherencia visual
+    _cargarDeportistas();
   }
+}
 
   void _avanzarTarjeta() => setState(() { _indiceActual++; _isSending = false; });
 
@@ -145,13 +147,36 @@ class _MatchSportViewState extends State<MatchSportView> {
   }
 
   Widget _construirTarjeta(Deportista deportista) {
-    return Column(
+  return Dismissible(
+    key: ValueKey(deportista.id),
+    direction: DismissDirection.horizontal,
+    onDismissed: (direction) {
+      final tipo = (direction == DismissDirection.endToStart) ? tipoDislike : tipoLike;
+      _enviarInteraccion(tipo);
+    },
+    background: Container(
+      color: Colors.red,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: const Icon(Icons.close, color: Colors.white, size: 50),
+    ),
+    secondaryBackground: Container(
+      color: Colors.green,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: const Icon(Icons.favorite, color: Colors.white, size: 50),
+    ),
+    // Faltaba el parámetro 'child:' aquí
+    child: Column(
       children: [
         Expanded(
           child: Card(
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             elevation: 10,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30), side: const BorderSide(color: Colors.blue, width: 1.5)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+              side: const BorderSide(color: Colors.blue, width: 1.5),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -159,7 +184,14 @@ class _MatchSportViewState extends State<MatchSportView> {
                   flex: 3,
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-                    child: Image.network(deportista.fotoUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.blue.shade50, child: const Icon(Icons.person, size: 80, color: Colors.blue))),
+                    child: Image.network(
+                      deportista.fotoUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.blue.shade50,
+                        child: const Icon(Icons.person, size: 80, color: Colors.blue),
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -169,8 +201,14 @@ class _MatchSportViewState extends State<MatchSportView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(deportista.edad > 0 ? '${deportista.nombreCompleto}, ${deportista.edad}' : deportista.nombreCompleto, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
-                        Text('@${deportista.username}', style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
+                        Text(
+                          deportista.edad > 0 
+                              ? '${deportista.nombreCompleto}, ${deportista.edad}' 
+                              : deportista.nombreCompleto,
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                        ),
+                        Text('@${deportista.username}', 
+                             style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 12),
                         Wrap(spacing: 8, runSpacing: 8, children: [
                           _infoChip(deportista.deportePrincipal, Icons.sports_soccer),
@@ -187,8 +225,9 @@ class _MatchSportViewState extends State<MatchSportView> {
         ),
         _buildActionButtons(),
       ],
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildActionButtons() {
     return Padding(
