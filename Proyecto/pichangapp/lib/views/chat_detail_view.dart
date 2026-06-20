@@ -10,12 +10,16 @@ class ChatDetailView extends StatefulWidget {
   final SalaChat sala;
   final int miUsuarioId;
   final String token;
+  final String? otroUsuarioNombre;
+  final String? otroUsuarioFoto;
 
   const ChatDetailView({
     super.key,
     required this.sala,
     required this.miUsuarioId,
     required this.token,
+    this.otroUsuarioNombre,
+    this.otroUsuarioFoto,
   });
 
   @override
@@ -321,6 +325,82 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     }
   }
 
+  Future<void> _confirmarDesbloqueo() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Desbloquear usuario'),
+        content: Text(
+          '¿Quieres desbloquear al usuario $otroUsuarioId? Después podrán volver a enviarse mensajes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Desbloquear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      await _desbloquearUsuario();
+    }
+  }
+
+  Future<void> _desbloquearUsuario() async {
+    if (_isBlocking || !_usuarioBloqueado) {
+      return;
+    }
+
+    setState(() {
+      _isBlocking = true;
+    });
+
+    try {
+      final desbloqueado = await _apiService.desbloquearUsuario(
+        idUsuarioOrigen: widget.miUsuarioId,
+        idUsuarioBloqueado: otroUsuarioId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isBlocking = false;
+        if (desbloqueado) {
+          _usuarioBloqueado = false;
+        }
+      });
+
+      if (desbloqueado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Usuario desbloqueado. El chat vuelve a estar disponible.'),
+          ),
+        );
+        await _verificarBloqueoExistente();
+        await _cargarMensajes();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo desbloquear al usuario. Revisa msvc-seguridad.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isBlocking = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al desbloquear usuario: $e')),
+      );
+    }
+  }
+
   Widget _mensajeBubble(MensajeChat mensaje) {
     final esMio = mensaje.remitenteId == widget.miUsuarioId;
     final esImagen = mensaje.tipoMensaje == 'IMAGEN' || 
@@ -512,9 +592,16 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   Widget _botonBloquear() {
     if (_usuarioBloqueado) {
-      return const Padding(
-        padding: EdgeInsets.only(right: 12),
-        child: Icon(Icons.block, color: Colors.red),
+      return IconButton(
+        onPressed: _isBlocking ? null : _confirmarDesbloqueo,
+        icon: _isBlocking
+            ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.lock_open, color: Colors.green),
+        tooltip: 'Desbloquear usuario',
       );
     }
 
@@ -535,7 +622,37 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Usuario $otroUsuarioId · Sala ${widget.sala.id}'),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: _usuarioBloqueado ? Colors.red[100] : Colors.blue[100],
+              backgroundImage: (!_usuarioBloqueado && widget.otroUsuarioFoto != null && widget.otroUsuarioFoto!.isNotEmpty)
+                  ? NetworkImage(widget.otroUsuarioFoto!)
+                  : null,
+              child: (!_usuarioBloqueado && widget.otroUsuarioFoto != null && widget.otroUsuarioFoto!.isNotEmpty)
+                  ? null
+                  : Icon(_usuarioBloqueado ? Icons.block : Icons.person, size: 20, color: _usuarioBloqueado ? Colors.red : Colors.blue),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId',
+                    style: const TextStyle(fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Sala ${widget.sala.id}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: () async {

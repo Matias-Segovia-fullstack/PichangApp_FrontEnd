@@ -346,6 +346,35 @@ class ApiService {
     }
   }
 
+  Future<bool> desbloquearUsuario({
+    required int idUsuarioOrigen,
+    required int idUsuarioBloqueado,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$seguridadBaseUrl/api/safety/desbloquear'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'idUsuarioOrigen': idUsuarioOrigen,
+              'idUsuarioBloqueado': idUsuarioBloqueado,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return true;
+      }
+
+      debugPrint('Error desbloquear usuario: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente desbloquear usuario: $e');
+      return false;
+    }
+  }
+
   Future<bool> actualizarPerfilUsuario({
   required String token,
   required dynamic userId,

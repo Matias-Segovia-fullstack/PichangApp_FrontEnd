@@ -22,6 +22,7 @@ class _ChatsViewState extends State<ChatsView> {
   List<SalaChat> _salas = [];
   Map<int, bool> _salasBloqueadas = {};
   Map<int, String> _nombresUsuarios = {};
+  Map<int, String?> _fotosUsuarios = {};
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _ChatsViewState extends State<ChatsView> {
 
       final Map<int, bool> bloqueos = {};
       final Map<int, String> nombres = {};
+      final Map<int, String?> fotos = {};
       for (final sala in salas) {
         final otroUsuarioId = sala.obtenerOtroUsuarioId(userId);
         if (otroUsuarioId != 0) {
@@ -87,9 +89,16 @@ class _ChatsViewState extends State<ChatsView> {
           } else {
             nombres[otroUsuarioId] = 'Usuario $otroUsuarioId';
           }
+          
+          if (otroUsuario != null && otroUsuario['profile'] != null) {
+            fotos[otroUsuarioId] = otroUsuario['profile']['fotoUrl'];
+          } else {
+            fotos[otroUsuarioId] = null;
+          }
         } else {
           bloqueos[sala.id] = false;
           nombres[0] = 'Usuario Desconocido';
+          fotos[0] = null;
         }
       }
 
@@ -101,6 +110,7 @@ class _ChatsViewState extends State<ChatsView> {
         _salas = salas;
         _salasBloqueadas = bloqueos;
         _nombresUsuarios = nombres;
+        _fotosUsuarios = fotos;
         _isLoading = false;
       });
     } catch (e) {
@@ -187,12 +197,18 @@ class _ChatsViewState extends State<ChatsView> {
           final otroUsuarioId = sala.obtenerOtroUsuarioId(miUsuarioId);
           final bool esBloqueada = _salasBloqueadas[sala.id] ?? false;
           final String nombreUsuario = _nombresUsuarios[otroUsuarioId] ?? 'Usuario $otroUsuarioId';
+          final String? fotoUrl = _fotosUsuarios[otroUsuarioId];
 
           return Card(
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: esBloqueada ? Colors.red[100] : Colors.blue[100],
-                child: Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
+                backgroundImage: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
+                    ? NetworkImage(fotoUrl)
+                    : null,
+                child: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
+                    ? null
+                    : Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
               ),
               title: Text(
                 nombreUsuario,
@@ -211,6 +227,8 @@ class _ChatsViewState extends State<ChatsView> {
                       sala: sala,
                       miUsuarioId: miUsuarioId,
                       token: token,
+                      otroUsuarioNombre: nombreUsuario,
+                      otroUsuarioFoto: fotoUrl,
                     ),
                   ),
                 );

@@ -88,7 +88,10 @@ class _ProfileViewState extends State<ProfileView> {
                 (route) => false,
               );
             },
-            child: const Text('Cerrar sesión', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Cerrar sesión',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -108,7 +111,9 @@ class _ProfileViewState extends State<ProfileView> {
       if (url != null && url.isNotEmpty) {
         final token = await _storage.read(key: 'jwt_token');
         if (token != null) {
-          final profileData = Map<String, dynamic>.from(_usuario?['profile'] ?? {});
+          final profileData = Map<String, dynamic>.from(
+            _usuario?['profile'] ?? {},
+          );
           profileData['fotoUrl'] = url;
 
           final success = await _apiService.actualizarPerfilUsuario(
@@ -116,12 +121,14 @@ class _ProfileViewState extends State<ProfileView> {
             userId: userId,
             datosActualizacion: profileData,
           );
-          
+
           if (!success) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Error: No se pudo guardar la foto en el servidor.'),
+                content: Text(
+                  'Error: No se pudo guardar la foto en el servidor.',
+                ),
                 backgroundColor: Colors.red,
               ),
             );
@@ -137,7 +144,7 @@ class _ProfileViewState extends State<ProfileView> {
             _usuario!['profile']['fotoUrl'] = url;
           }
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Foto de perfil actualizada'),
@@ -380,14 +387,19 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green[50],
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.green[200]!, width: 1),
                   ),
                   child: Text(
-                    usuario['enabled'] == true ? 'Cuenta activa' : 'Cuenta inactiva',
+                    usuario['enabled'] == true
+                        ? 'Cuenta activa'
+                        : 'Cuenta inactiva',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.green[700],
@@ -498,7 +510,8 @@ class _ProfileViewState extends State<ProfileView> {
                     final resultado = await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => EditProfileView(usuarioActual: _usuario ?? {}),
+                        builder: (_) =>
+                            EditProfileView(usuarioActual: _usuario ?? {}),
                       ),
                     );
 
@@ -575,10 +588,7 @@ class _ProfileViewState extends State<ProfileView> {
             Text(
               _error ?? 'Error desconocido',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
@@ -586,7 +596,10 @@ class _ProfileViewState extends State<ProfileView> {
               icon: const Icon(Icons.refresh),
               label: const Text('Intentar Nuevamente'),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
                 backgroundColor: Colors.blue,
               ),
             ),

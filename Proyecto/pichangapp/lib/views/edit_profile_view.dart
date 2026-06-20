@@ -31,7 +31,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   final Map<String, List<String>> _posicionesPorDeporte = {
     'BASKET': ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'],
-    'BOXEO': ['Peso Ligero', 'Peso Medio', 'Peso Pesado'],
+    'BOXEO': ['Ortodoxa', 'Zurda'],
   };
 
   @override
@@ -49,17 +49,29 @@ class _EditProfileViewState extends State<EditProfileView> {
     _edadController = TextEditingController(
       text: profile is Map<String, dynamic> ? (profile['edad']?.toString() ?? '') : '',
     );
-
-    _alturaController = TextEditingController(
-      text: atributos is Map<String, dynamic> ? (atributos['altura']?.toString() ?? '') : '',
-    );
-
     _descripcionController = TextEditingController(
-      text: profile is Map<String, dynamic> ? (profile['descripcion'] ?? '') : '',
+      text: profile is Map<String, dynamic> ? (profile['descripcion']?.toString() ?? '') : '',
     );
 
-    _deporteSeleccionado = profile is Map<String, dynamic> ? profile['deportePrincipal'] : null;
-    _posicionSeleccionada = atributos is Map<String, dynamic> ? atributos['posicion'] : null;
+    _deporteSeleccionado = profile is Map<String, dynamic>
+        ? profile['deportePrincipal']?.toString()
+        : null;
+
+    if (_deporteSeleccionado == 'BOXEO') {
+      _alturaController = TextEditingController(
+        text: atributos is Map<String, dynamic> ? (atributos['peso']?.toString() ?? '') : '',
+      );
+      _posicionSeleccionada = atributos is Map<String, dynamic>
+          ? atributos['guardia']?.toString()
+          : null;
+    } else {
+      _alturaController = TextEditingController(
+        text: atributos is Map<String, dynamic> ? (atributos['altura']?.toString() ?? '') : '',
+      );
+      _posicionSeleccionada = atributos is Map<String, dynamic>
+          ? atributos['posicion']?.toString()
+          : null;
+    }
   }
 
   @override
@@ -71,23 +83,11 @@ class _EditProfileViewState extends State<EditProfileView> {
   }
 
   Future<void> _guardarCambios() async {
-    if (_edadController.text.isEmpty) {
-      _mostrarError('Por favor ingresa la edad');
-      return;
-    }
+    final edad = int.tryParse(_edadController.text.trim());
+    final numeroDeportivo = int.tryParse(_alturaController.text.trim());
 
-    if (int.tryParse(_edadController.text) == null) {
-      _mostrarError('La edad debe ser un número válido');
-      return;
-    }
-
-    if (_alturaController.text.isEmpty) {
-      _mostrarError('Por favor ingresa la altura/peso');
-      return;
-    }
-
-    if (int.tryParse(_alturaController.text) == null) {
-      _mostrarError('La altura/peso debe ser un número válido');
+    if (edad == null || edad <= 0) {
+      _mostrarError('Por favor ingresa una edad válida');
       return;
     }
 
@@ -96,8 +96,21 @@ class _EditProfileViewState extends State<EditProfileView> {
       return;
     }
 
+    if (numeroDeportivo == null || numeroDeportivo <= 0) {
+      _mostrarError(
+        _deporteSeleccionado == 'BOXEO'
+            ? 'Por favor ingresa un peso válido'
+            : 'Por favor ingresa una altura válida',
+      );
+      return;
+    }
+
     if (_posicionSeleccionada == null) {
-      _mostrarError('Por favor selecciona una posición');
+      _mostrarError(
+        _deporteSeleccionado == 'BOXEO'
+            ? 'Por favor selecciona una guardia'
+            : 'Por favor selecciona una posición',
+      );
       return;
     }
 
@@ -114,17 +127,17 @@ class _EditProfileViewState extends State<EditProfileView> {
         throw Exception('No existe sesión activa.');
       }
 
-      Map<String, dynamic> atributosDeportivos = {};
+      Map<String, dynamic> atributosDeportivos;
 
-      if (_deporteSeleccionado == 'BASKET') {
+      if (_deporteSeleccionado == 'BOXEO') {
         atributosDeportivos = {
-          'altura': int.parse(_alturaController.text),
-          'posicion': _posicionSeleccionada,
-        };
-      } else if (_deporteSeleccionado == 'BOXEO') {
-        atributosDeportivos = {
-          'peso': int.parse(_alturaController.text),
+          'peso': numeroDeportivo,
           'guardia': _posicionSeleccionada,
+        };
+      } else {
+        atributosDeportivos = {
+          'altura': numeroDeportivo,
+          'posicion': _posicionSeleccionada,
         };
       }
 

@@ -29,8 +29,6 @@ class MediaService {
         return null;
       }
 
-      final File fileToUpload = File(pickedFile.path);
-      
       final String fileName = '${DateTime.now().microsecondsSinceEpoch}.webp';
       final String uploadPath = '$folder/$fileName';
 
@@ -55,6 +53,8 @@ class MediaService {
             );
       } else {
         // COMPORTAMIENTO MÓVIL: Comprimir usando paths nativos
+        final File fileToUpload = File(pickedFile.path);
+        
         final tempDir = await getTemporaryDirectory();
         final String targetPath = '${tempDir.path}/img_${DateTime.now().millisecondsSinceEpoch}.webp';
 
