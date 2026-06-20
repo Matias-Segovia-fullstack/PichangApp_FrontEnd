@@ -27,10 +27,8 @@ class _EditProfileViewState extends State<EditProfileView> {
   bool _isLoading = false;
   String? _error;
 
-  // Opciones de deportes
   final List<String> _deportes = ['BASKET', 'BOXEO'];
 
-  // Posiciones por deporte
   final Map<String, List<String>> _posicionesPorDeporte = {
     'BASKET': ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'],
     'BOXEO': ['Peso Ligero', 'Peso Medio', 'Peso Pesado'],
@@ -78,8 +76,18 @@ class _EditProfileViewState extends State<EditProfileView> {
       return;
     }
 
+    if (int.tryParse(_edadController.text) == null) {
+      _mostrarError('La edad debe ser un número válido');
+      return;
+    }
+
     if (_alturaController.text.isEmpty) {
-      _mostrarError('Por favor ingresa la altura');
+      _mostrarError('Por favor ingresa la altura/peso');
+      return;
+    }
+
+    if (int.tryParse(_alturaController.text) == null) {
+      _mostrarError('La altura/peso debe ser un número válido');
       return;
     }
 
@@ -106,7 +114,6 @@ class _EditProfileViewState extends State<EditProfileView> {
         throw Exception('No existe sesión activa.');
       }
 
-      // Preparar datos según el deporte seleccionado
       Map<String, dynamic> atributosDeportivos = {};
 
       if (_deporteSeleccionado == 'BASKET') {
@@ -116,7 +123,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         };
       } else if (_deporteSeleccionado == 'BOXEO') {
         atributosDeportivos = {
-          'peso': int.parse(_alturaController.text), // En este caso puede ser peso
+          'peso': int.parse(_alturaController.text),
           'guardia': _posicionSeleccionada,
         };
       }
@@ -138,9 +145,13 @@ class _EditProfileViewState extends State<EditProfileView> {
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Perfil actualizado correctamente')),
+          const SnackBar(
+            content: Text('✓ Perfil actualizado correctamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
         );
-        Navigator.pop(context, true); // Retorna true para indicar que se guardaron cambios
+        Navigator.pop(context, true);
       } else {
         _mostrarError('No se pudo actualizar el perfil');
       }
@@ -157,15 +168,109 @@ class _EditProfileViewState extends State<EditProfileView> {
   }
 
   void _mostrarError(String mensaje) {
-    setState(() {
-      _error = mensaje;
-    });
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
       ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    String? suffix,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, color: Colors.blue),
+            suffixText: suffix,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.blue, width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+    required IconData icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: Colors.blue),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.blue, width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          items: items.map((item) {
+            return DropdownMenuItem(value: item, child: Text(item));
+          }).toList(),
+          onChanged: onChanged,
+          hint: const Text('Selecciona una opción'),
+        ),
+      ],
     );
   }
 
@@ -173,151 +278,117 @@ class _EditProfileViewState extends State<EditProfileView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editar perfil'),
+        elevation: 0,
+        backgroundColor: Colors.blue,
+        title: const Text(
+          'Editar Perfil',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+            )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Campo Descripción
-                  const Text(
-                    'Descripción deportiva',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
+                  // Descripción
+                  _buildTextField(
                     controller: _descripcionController,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      hintText: 'Cuéntanos sobre ti',
-                      prefixIcon: const Icon(Icons.description),
-                    ),
-                    maxLines: 3,
+                    label: 'Descripción Deportiva',
+                    hint: 'Cuéntanos sobre ti y tu experiencia',
+                    icon: Icons.description_outlined,
+                    maxLines: 4,
                   ),
                   const SizedBox(height: 24),
 
-                  // Campo Edad
-                  const Text(
-                    'Edad',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
+                  // Edad
+                  _buildTextField(
                     controller: _edadController,
+                    label: 'Edad',
+                    hint: 'Ingresa tu edad',
+                    icon: Icons.cake_outlined,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      hintText: 'Ingresa tu edad',
-                      prefixIcon: const Icon(Icons.cake),
-                    ),
+                    suffix: 'años',
                   ),
                   const SizedBox(height: 24),
 
-                  // Selector Deporte
-                  const Text(
-                    'Deporte principal',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
+                  // Deporte Principal
+                  _buildDropdown(
+                    label: 'Deporte Principal',
                     value: _deporteSeleccionado,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      prefixIcon: const Icon(Icons.sports),
-                    ),
-                    items: _deportes.map((deporte) {
-                      return DropdownMenuItem(
-                        value: deporte,
-                        child: Text(deporte),
-                      );
-                    }).toList(),
+                    items: _deportes,
                     onChanged: (valor) {
                       setState(() {
                         _deporteSeleccionado = valor;
-                        _posicionSeleccionada = null; // Resetear posición
+                        _posicionSeleccionada = null;
                       });
                     },
-                    hint: const Text('Selecciona un deporte'),
+                    icon: Icons.sports_basketball_outlined,
                   ),
                   const SizedBox(height: 24),
 
-                  // Campo Altura/Peso (dinámico según deporte)
-                  Text(
-                    _deporteSeleccionado == 'BOXEO' ? 'Peso (kg)' : 'Altura (cm)',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
+                  // Altura/Peso
+                  _buildTextField(
                     controller: _alturaController,
+                    label: _deporteSeleccionado == 'BOXEO' ? 'Peso' : 'Altura',
+                    hint: _deporteSeleccionado == 'BOXEO'
+                        ? 'Ingresa tu peso'
+                        : 'Ingresa tu altura',
+                    icon: _deporteSeleccionado == 'BOXEO'
+                        ? Icons.monitor_weight
+                        : Icons.height,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      hintText: _deporteSeleccionado == 'BOXEO' ? 'Ingresa tu peso' : 'Ingresa tu altura',
-                      prefixIcon: Icon(
-                        _deporteSeleccionado == 'BOXEO' ? Icons.monitor_weight : Icons.height,
-                      ),
-                      suffixText: _deporteSeleccionado == 'BOXEO' ? 'kg' : 'cm',
-                    ),
+                    suffix: _deporteSeleccionado == 'BOXEO' ? 'kg' : 'cm',
                   ),
                   const SizedBox(height: 24),
 
-                  // Selector Posición (condicional al deporte)
+                  // Posición/Guardia
                   if (_deporteSeleccionado != null)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                    _buildDropdown(
+                      label:
                           _deporteSeleccionado == 'BOXEO' ? 'Guardia' : 'Posición',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          value: _posicionSeleccionada,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            prefixIcon: const Icon(Icons.sports_soccer),
-                          ),
-                          items: (_posicionesPorDeporte[_deporteSeleccionado] ?? [])
-                              .map((posicion) {
-                            return DropdownMenuItem(
-                              value: posicion,
-                              child: Text(posicion),
-                            );
-                          }).toList(),
-                          onChanged: (valor) {
-                            setState(() {
-                              _posicionSeleccionada = valor;
-                            });
-                          },
-                          hint: const Text('Selecciona una posición'),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
+                      value: _posicionSeleccionada,
+                      items: _posicionesPorDeporte[_deporteSeleccionado] ?? [],
+                      onChanged: (valor) {
+                        setState(() {
+                          _posicionSeleccionada = valor;
+                        });
+                      },
+                      icon: _deporteSeleccionado == 'BOXEO'
+                          ? Icons.sports_martial_arts_outlined
+                          : Icons.sports_soccer_outlined,
                     ),
+
+                  const SizedBox(height: 40),
 
                   // Botones
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: _isLoading
+                              ? null
+                              : () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(
+                              color: Colors.grey[300]!,
+                            ),
+                          ),
                           child: const Text('Cancelar'),
                         ),
                       ),
@@ -325,11 +396,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                       Expanded(
                         child: FilledButton(
                           onPressed: _isLoading ? null : _guardarCambios,
-                          child: const Text('Guardar cambios'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: Colors.blue,
+                          ),
+                          child: const Text('Guardar Cambios'),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

@@ -194,6 +194,55 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  Widget _buildDeporteAtributos({
+    required String deporte,
+    required Map<String, dynamic> atributos,
+  }) {
+    final children = <Widget>[];
+
+    if (deporte.toUpperCase() == 'BASKET') {
+      // Para BASKET: mostrar Altura y Posición
+      children.addAll([
+        _infoCard(
+          titulo: 'Altura',
+          valor: '${_texto(atributos['altura'])} cm',
+          icon: Icons.height,
+          iconColor: Colors.cyan,
+        ),
+        if (atributos['posicion'] != null) ...[
+          Divider(height: 12, color: Colors.grey[200]),
+          _infoCard(
+            titulo: 'Posición',
+            valor: _texto(atributos['posicion']),
+            icon: Icons.sports_soccer_outlined,
+            iconColor: Colors.amber,
+          ),
+        ],
+      ]);
+    } else if (deporte.toUpperCase() == 'BOXEO') {
+      // Para BOXEO: mostrar Peso y Guardia
+      children.addAll([
+        _infoCard(
+          titulo: 'Peso',
+          valor: '${_texto(atributos['peso'])} kg',
+          icon: Icons.monitor_weight,
+          iconColor: Colors.purple,
+        ),
+        if (atributos['guardia'] != null) ...[
+          Divider(height: 12, color: Colors.grey[200]),
+          _infoCard(
+            titulo: 'Guardia',
+            valor: _texto(atributos['guardia']),
+            icon: Icons.sports_martial_arts_outlined,
+            iconColor: Colors.deepOrange,
+          ),
+        ],
+      ]);
+    }
+
+    return Column(children: children);
+  }
+
   Widget _contenidoPerfil() {
     final usuario = _usuario;
 
@@ -204,6 +253,9 @@ class _ProfileViewState extends State<ProfileView> {
     }
 
     final profile = usuario['profile'];
+    final deporte = profile is Map<String, dynamic>
+        ? profile['deportePrincipal']
+        : null;
     final atributos = profile is Map<String, dynamic>
         ? profile['atributosDeportivos']
         : null;
@@ -389,29 +441,17 @@ class _ProfileViewState extends State<ProfileView> {
                 Divider(height: 12, color: Colors.grey[200]),
                 _infoCard(
                   titulo: 'Deporte Principal',
-                  valor: profile is Map<String, dynamic>
-                      ? _texto(profile['deportePrincipal'])
-                      : 'No definido',
+                  valor: deporte ?? 'No definido',
                   icon: Icons.sports_basketball_outlined,
                   iconColor: Colors.red,
                 ),
-                if (atributos is Map<String, dynamic>) ...[
+                // Mostrar atributos dinámicos según el deporte
+                if (atributos is Map<String, dynamic> && deporte != null) ...[
                   Divider(height: 12, color: Colors.grey[200]),
-                  _infoCard(
-                    titulo: 'Altura',
-                    valor: '${_texto(atributos['altura'])} cm',
-                    icon: Icons.height,
-                    iconColor: Colors.cyan,
+                  _buildDeporteAtributos(
+                    deporte: deporte,
+                    atributos: atributos,
                   ),
-                  if (atributos['posicion'] != null) ...[
-                    Divider(height: 12, color: Colors.grey[200]),
-                    _infoCard(
-                      titulo: 'Posición',
-                      valor: _texto(atributos['posicion']),
-                      icon: Icons.sports_soccer_outlined,
-                      iconColor: Colors.amber,
-                    ),
-                  ],
                 ],
               ],
             ),
