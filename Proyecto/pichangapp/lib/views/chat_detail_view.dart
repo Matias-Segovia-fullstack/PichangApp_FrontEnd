@@ -126,8 +126,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           .whereType<Map<String, dynamic>>()
           .map(MensajeChat.fromJson)
           .where((mensaje) => mensaje.id != 0)
-          .toList()
-          .reversed
           .toList();
 
       if (!mounted) return;
@@ -168,7 +166,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
     if (enviado) {
       _messageController.clear();
-      await _cargarMensajes();
+      // El mensaje llegará por el WebSocket y se insertará automáticamente
     } else {
       await _verificarBloqueoExistente();
 
@@ -214,7 +212,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         if (!mounted) return;
 
         if (enviado) {
-          await _cargarMensajes();
+          // El mensaje llegará por el WebSocket y se insertará automáticamente
         } else {
           await _verificarBloqueoExistente();
           ScaffoldMessenger.of(context).showSnackBar(
@@ -410,6 +408,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           await _cargarMensajes();
         },
         child: ListView.builder(
+          reverse: true,
           padding: const EdgeInsets.all(16),
           itemCount: _mensajes.length,
           itemBuilder: (context, index) {
