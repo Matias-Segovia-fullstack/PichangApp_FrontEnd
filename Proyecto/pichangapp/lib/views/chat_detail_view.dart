@@ -402,57 +402,43 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _mensajeBubble(MensajeChat mensaje) {
-    final esMio = mensaje.remitenteId == widget.miUsuarioId;
-    final esImagen = mensaje.tipoMensaje == 'IMAGEN' || 
-                     (mensaje.mediaUrl != null && mensaje.mediaUrl!.isNotEmpty) ||
-                     (mensaje.contenido.startsWith('http') && mensaje.contenido.contains('supabase.co/storage'));
+  final esMio = mensaje.remitenteId == widget.miUsuarioId;
+  final esImagen = mensaje.tipoMensaje == 'IMAGEN' || 
+                   (mensaje.mediaUrl != null && mensaje.mediaUrl!.isNotEmpty);
 
-    return Align(
-      alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        constraints: const BoxConstraints(maxWidth: 310),
-        decoration: BoxDecoration(
-          color: esMio ? Colors.blue : Colors.grey[300],
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (esImagen)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  mensaje.mediaUrl ?? mensaje.contenido,
-                  width: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Text('Error al cargar imagen', style: TextStyle(color: Colors.red)),
-                ),
-              )
-            else
-              Text(
-                mensaje.contenido,
-                style: TextStyle(
-                  color: esMio ? Colors.white : Colors.black,
-                  fontSize: 15,
-                ),
-              ),
-            const SizedBox(height: 4),
-            Text(
-              'Usuario ${mensaje.remitenteId}',
-              style: TextStyle(
-                color: esMio ? Colors.white70 : Colors.black54,
-                fontSize: 11,
-              ),
-            ),
-          ],
+  return Align(
+    alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      constraints: const BoxConstraints(maxWidth: 260),
+      decoration: BoxDecoration(
+        color: esMio ? Colors.blue.shade600 : Colors.grey.shade200,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(20),
+          topRight: const Radius.circular(20),
+          bottomLeft: esMio ? const Radius.circular(20) : Radius.zero,
+          bottomRight: esMio ? Radius.zero : const Radius.circular(20),
         ),
       ),
-    );
-  }
+      child: Column(
+        crossAxisAlignment: esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          if (esImagen)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(mensaje.mediaUrl ?? mensaje.contenido, width: 200),
+            )
+          else
+            Text(
+              mensaje.contenido,
+              style: TextStyle(color: esMio ? Colors.white : Colors.black87, fontSize: 15),
+            ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _contenidoMensajes() {
     if (_isLoading) {
@@ -505,61 +491,43 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _inputMensaje() {
-    if (_usuarioBloqueado) {
-      return SafeArea(
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          color: Colors.red[50],
-          child: const Text(
-            'Chat bloqueado. Ya no se pueden enviar mensajes en esta sala.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-    }
+  if (_usuarioBloqueado) return const SizedBox.shrink(); // Ocultamos si está bloqueado
 
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        color: Colors.white,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                decoration: const InputDecoration(
-                  hintText: 'Escribe un mensaje',
-                  border: OutlineInputBorder(),
-                ),
-                minLines: 1,
-                maxLines: 4,
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+    ),
+    child: SafeArea(
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: _isSending ? null : _subirImagen,
+            icon: Icon(Icons.add_photo_alternate, color: Colors.blue.shade400),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              decoration: InputDecoration(
+                hintText: 'Escribe un mensaje...',
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
             ),
-            IconButton(
-              onPressed: _isSending ? null : _subirImagen,
-              icon: const Icon(Icons.camera_alt, color: Colors.grey),
-            ),
-            const SizedBox(width: 4),
-            IconButton.filled(
-              onPressed: _isSending ? null : _enviarMensaje,
-              icon: _isSending
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send),
-            ),
-          ],
-        ),
+          ),
+          IconButton.filled(
+            onPressed: _isSending ? null : _enviarMensaje,
+            style: IconButton.styleFrom(backgroundColor: Colors.blue.shade600),
+            icon: _isSending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send, color: Colors.white),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _bannerEstado() {
     if (_usuarioBloqueado) {
@@ -622,6 +590,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.blue, // Pintar la barra de azul
+        foregroundColor: Colors.white, // Hace que la flecha de volver y los iconos sean blancos
+        elevation: 0, // Elimina sombras para un diseño limpio
         title: Row(
           children: [
             CircleAvatar(
@@ -634,19 +605,19 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   ? null
                   : Icon(_usuarioBloqueado ? Icons.block : Icons.person, size: 20, color: _usuarioBloqueado ? Colors.red : Colors.blue),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId',
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    'Sala ${widget.sala.id}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                  const Text(
+                    'Chat Activo',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
                   ),
                 ],
               ),
