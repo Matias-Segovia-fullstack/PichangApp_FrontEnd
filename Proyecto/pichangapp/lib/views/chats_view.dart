@@ -189,9 +189,10 @@ class _ChatsViewState extends State<ChatsView> {
 
     return RefreshIndicator(
       onRefresh: _cargarSalas,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(12),
+      child: ListView.separated( // Cambiado a ListView.separated para más orden
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         itemCount: _salas.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final sala = _salas[index];
           final otroUsuarioId = sala.obtenerOtroUsuarioId(miUsuarioId);
@@ -199,26 +200,52 @@ class _ChatsViewState extends State<ChatsView> {
           final String nombreUsuario = _nombresUsuarios[otroUsuarioId] ?? 'Usuario $otroUsuarioId';
           final String? fotoUrl = _fotosUsuarios[otroUsuarioId];
 
-          return Card(
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24), // Bordes estilo "cancha"
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
             child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: esBloqueada ? Colors.red[100] : Colors.blue[100],
-                backgroundImage: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
-                    ? NetworkImage(fotoUrl)
-                    : null,
-                child: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
-                    ? null
-                    : Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              leading: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: esBloqueada ? Colors.red : Colors.blue, width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.grey.shade200,
+                  backgroundImage: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
+                      ? NetworkImage(fotoUrl)
+                      : null,
+                  child: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
+                      ? null
+                      : Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
+                ),
               ),
               title: Text(
                 nombreUsuario,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
               ),
-              subtitle: Text(
-                'Sala ${sala.id} · Match ${sala.matchSocialId} · ${esBloqueada ? '[🔒 Chat Bloqueado]' : sala.estado}',
-                style: esBloqueada ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) : null,
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  esBloqueada ? 'Chat Bloqueado' : 'Match deportivo activo',
+                  style: TextStyle(
+                    color: esBloqueada ? Colors.red.shade600 : Colors.blue.shade600,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blue.shade300),
               onTap: () {
                 Navigator.push(
                   context,
@@ -255,13 +282,15 @@ class _ChatsViewState extends State<ChatsView> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50, // Fondo más limpio
       appBar: AppBar(
-        title: const Text('Chats'),
+        title: const Text('Chats Deportivos', style: TextStyle(fontWeight: FontWeight.w900)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            onPressed: _cargarSalas,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _cargarSalas, icon: const Icon(Icons.refresh)),
         ],
       ),
       body: body,
