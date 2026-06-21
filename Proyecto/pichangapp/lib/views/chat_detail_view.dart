@@ -370,21 +370,66 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _confirmarDesbloqueo() async {
+    // Obtenemos el nombre real del usuario, o un fallback
+    final nombreUsuario = widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId';
+
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Desbloquear usuario'),
-        content: Text(
-          '¿Quieres desbloquear al usuario $otroUsuarioId? Después podrán volver a enviarse mensajes.',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icono de candado abierto en un círculo verde suave
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.lock_open, size: 48, color: Colors.green),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Desbloquear Usuario',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '¿Quieres desbloquear a $nombreUsuario?',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Después del desbloqueo, esta sala de chat volverá a estar activa y podrán enviarse mensajes nuevamente.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+          ],
         ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade600,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          FilledButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Desbloquear'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('Sí, desbloquear', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
