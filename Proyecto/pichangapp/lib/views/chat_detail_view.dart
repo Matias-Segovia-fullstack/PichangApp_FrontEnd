@@ -246,21 +246,65 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _confirmarBloqueo() async {
+    final nombreUsuario = widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId';
+
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Bloquear usuario'),
-        content: Text(
-          '¿Quieres bloquear al usuario $otroUsuarioId? Después del bloqueo no debería poder seguir enviando mensajes contigo.',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icono de advertencia en un círculo suave
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.block, size: 48, color: Colors.red),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Bloquear Usuario',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '¿Quieres bloquear a $nombreUsuario?',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Después del bloqueo, esta sala de chat quedará deshabilitada y no podrán enviarse más mensajes.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+          ],
         ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey.shade600,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          FilledButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Bloquear'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('Sí, bloquear', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
