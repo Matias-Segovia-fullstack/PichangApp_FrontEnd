@@ -120,15 +120,62 @@ class _MatchSportViewState extends State<MatchSportView> {
   String _limpiarError(Object e) => e.toString().length <= 180 ? e.toString() : '${e.toString().substring(0, 180)}...';
 
   Future<void> _mostrarMatch(Deportista d) async {
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('¡Nuevo MatchSocial!'),
-        content: Text('${d.nombreCompleto} también te dio Like. RabbitMQ debería crear una sala de chat automáticamente.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Continuar'))],
-      ),
-    );
-  }
+  await showGeneralDialog(
+    context: context,
+    pageBuilder: (context, anim1, anim2) => Container(),
+    transitionBuilder: (context, anim1, anim2, child) {
+      return ScaleTransition(
+        scale: Tween<double>(begin: 0.5, end: 1.0).animate(anim1),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          contentPadding: EdgeInsets.zero,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Encabezado con color deportivo
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: const Center(
+                  child: Icon(Icons.emoji_events, size: 80, color: Colors.white),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Text('¡HAY MATCH DEPORTIVO!', 
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blue)),
+                    const SizedBox(height: 15),
+                    Text('${d.nombreCompleto} quiere jugar contigo.', 
+                      textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(height: 10),
+                    const Text('RabbitMQ debería crear una sala de chat automáticamente.', 
+                      textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('¡Vamos a jugar!', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 
   // --- UI Estilizada ---
   Widget _infoChip(String texto, IconData icono) {
