@@ -514,4 +514,64 @@ Future<bool> marcarNotificacionComoLeida({
     return false;
   }
 }
+
+bool _valorLeidaComoBool(dynamic valor) {
+  if (valor is bool) {
+    return valor;
+  }
+
+  if (valor is String) {
+    return valor.toLowerCase() == 'true';
+  }
+
+  if (valor is int) {
+    return valor == 1;
+  }
+
+  return false;
+}
+
+Future<int> marcarNotificacionesMensajeComoLeidas({
+  required int usuarioId,
+}) async {
+  try {
+    final data = await obtenerNotificacionesUsuario(
+      usuarioId: usuarioId,
+    );
+
+    int totalMarcadas = 0;
+
+    for (final item in data) {
+      if (item is! Map) continue;
+
+      final id = int.tryParse(item['id']?.toString() ?? '');
+      final tipo = item['tipo']?.toString().toUpperCase().trim() ?? '';
+      final leida = _valorLeidaComoBool(item['leida']);
+
+      if (id == null) continue;
+
+      if (tipo == 'MENSAJE' && !leida) {
+        final ok = await marcarNotificacionComoLeida(
+          notificacionId: id,
+        );
+
+        if (ok) {
+          totalMarcadas++;
+        }
+      }
+    }
+
+    if (totalMarcadas > 0) {
+      debugPrint(
+        'Notificaciones de mensaje marcadas como leídas: $totalMarcadas',
+      );
+    }
+
+    return totalMarcadas;
+  } catch (e) {
+    debugPrint('Error marcando notificaciones de mensaje como leídas: $e');
+    return 0;
+  }
+}
+
 }

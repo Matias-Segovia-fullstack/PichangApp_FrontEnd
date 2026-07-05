@@ -35,6 +35,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   bool _isSending = false;
   bool _isBlocking = false;
   bool _usuarioBloqueado = false;
+  bool _marcandoNotificacionesMensaje = false;
 
   RealtimeChannel? _realtimeChannel;
 
@@ -61,11 +62,41 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   Future<void> _inicializarChat() async {
     await _verificarBloqueoExistente();
     await _cargarMensajes();
+
+    // Si el usuario abrió el chat, asumimos que ya leyó los mensajes.
+    // No toca Supabase Realtime ni modifica la recepción/envío del chat.
+    await _marcarNotificacionesMensajeComoLeidas();
+
     _conectarWebSocket();
+  }
+
+  Future<void> _marcarNotificacionesMensajeComoLeidas({
+    bool esperarBackend = false,
+  }) async {
+    if (_marcandoNotificacionesMensaje) return;
+
+    _marcandoNotificacionesMensaje = true;
+
+    try {
+      // Cuando llega un mensaje por Realtime, la notificación puede demorar
+      // un poco en crearse por backend/eventos. Este delay ayuda a alcanzarla.
+      if (esperarBackend) {
+        await Future.delayed(const Duration(milliseconds: 900));
+      }
+
+      await _apiService.marcarNotificacionesMensajeComoLeidas(
+        usuarioId: widget.miUsuarioId,
+      );
+    } catch (e) {
+      debugPrint('No se pudieron marcar notificaciones de mensaje: $e');
+    } finally {
+      _marcandoNotificacionesMensaje = false;
+    }
   }
 
   void _conectarWebSocket() {
     debugPrint('Iniciando conexión Supabase Realtime para sala ${widget.sala.id}');
+
     _realtimeChannel = Supabase.instance.client
         .channel('public:mensajes_chat:sala_${widget.sala.id}')
         .onPostgresChanges(
@@ -79,9 +110,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           ),
           callback: (payload) {
             debugPrint('Nuevo mensaje recibido vía Supabase Realtime');
+
             final data = payload.newRecord;
-            
-            // Adaptar las claves si vienen en snake_case desde la base de datos
+
+            // Adaptar las claves si vienen en snake_case desde la base de datos.
             final mensajeMap = {
               'id': data['id'],
               'salaChatId': data['sala_id'],
@@ -91,7 +123,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               'mediaUrl': data['media_url'],
               'fechaEnvio': data['fecha_envio'],
             };
-            
+
             final nuevoMensaje = MensajeChat.fromJson(mensajeMap);
 
             if (mounted) {
@@ -100,6 +132,15 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   _mensajes.insert(0, nuevoMensaje);
                 }
               });
+
+              // Si el mensaje llegó mientras estoy dentro del chat,
+              // se considera leído visualmente.
+              // Solo marcamos notificaciones si el mensaje viene del otro usuario.
+              if (nuevoMensaje.remitenteId != widget.miUsuarioId) {
+                _marcarNotificacionesMensajeComoLeidas(
+                  esperarBackend: true,
+                );
+              }
             }
           },
         )
@@ -175,7 +216,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
     if (enviado) {
       _messageController.clear();
-      // El mensaje llegará por el WebSocket y se insertará automáticamente
+
+      // El mensaje llegará por Supabase Realtime y se insertará automáticamente.
+      // No se fuerza recarga para no romper el comportamiento realtime existente.
     } else {
       await _verificarBloqueoExistente();
 
@@ -221,9 +264,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         if (!mounted) return;
 
         if (enviado) {
-          // El mensaje llegará por el WebSocket y se insertará automáticamente
+          // El mensaje llegará por Supabase Realtime y se insertará automáticamente.
         } else {
           await _verificarBloqueoExistente();
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -239,6 +283,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       }
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al subir imagen: $e')),
       );
@@ -256,7 +301,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icono de advertencia en un círculo suave
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -293,7 +337,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               foregroundColor: Colors.grey.shade600,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -301,10 +348,15 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-            child: const Text('Sí, bloquear', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Sí, bloquear',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -370,7 +422,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _confirmarDesbloqueo() async {
-    // Obtenemos el nombre real del usuario, o un fallback
     final nombreUsuario = widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId';
 
     final confirmar = await showDialog<bool>(
@@ -381,7 +432,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icono de candado abierto en un círculo verde suave
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -418,7 +468,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               foregroundColor: Colors.grey.shade600,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -426,10 +479,15 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-            child: const Text('Sí, desbloquear', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Sí, desbloquear',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -470,8 +528,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             content: Text('Usuario desbloqueado. El chat vuelve a estar disponible.'),
           ),
         );
+
         await _verificarBloqueoExistente();
         await _cargarMensajes();
+        await _marcarNotificacionesMensajeComoLeidas();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -481,9 +541,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       }
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _isBlocking = false;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al desbloquear usuario: $e')),
       );
@@ -491,43 +553,49 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _mensajeBubble(MensajeChat mensaje) {
-  final esMio = mensaje.remitenteId == widget.miUsuarioId;
-  final esImagen = mensaje.tipoMensaje == 'IMAGEN' || 
-                   (mensaje.mediaUrl != null && mensaje.mediaUrl!.isNotEmpty);
+    final esMio = mensaje.remitenteId == widget.miUsuarioId;
+    final esImagen = mensaje.tipoMensaje == 'IMAGEN' ||
+        (mensaje.mediaUrl != null && mensaje.mediaUrl!.isNotEmpty);
 
-  return Align(
-    alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
-    child: Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      constraints: const BoxConstraints(maxWidth: 260),
-      decoration: BoxDecoration(
-        color: esMio ? Colors.blue.shade600 : Colors.grey.shade200,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
-          bottomLeft: esMio ? const Radius.circular(20) : Radius.zero,
-          bottomRight: esMio ? Radius.zero : const Radius.circular(20),
+    return Align(
+      alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 260),
+        decoration: BoxDecoration(
+          color: esMio ? Colors.blue.shade600 : Colors.grey.shade200,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: esMio ? const Radius.circular(20) : Radius.zero,
+            bottomRight: esMio ? Radius.zero : const Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (esImagen)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  mensaje.mediaUrl ?? mensaje.contenido,
+                  width: 200,
+                ),
+              )
+            else
+              Text(
+                mensaje.contenido,
+                style: TextStyle(
+                  color: esMio ? Colors.white : Colors.black87,
+                  fontSize: 15,
+                ),
+              ),
+          ],
         ),
       ),
-      child: Column(
-        crossAxisAlignment: esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          if (esImagen)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(mensaje.mediaUrl ?? mensaje.contenido, width: 200),
-            )
-          else
-            Text(
-              mensaje.contenido,
-              style: TextStyle(color: esMio ? Colors.white : Colors.black87, fontSize: 15),
-            ),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _contenidoMensajes() {
     if (_isLoading) {
@@ -566,6 +634,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         onRefresh: () async {
           await _verificarBloqueoExistente();
           await _cargarMensajes();
+          await _marcarNotificacionesMensajeComoLeidas();
         },
         child: ListView.builder(
           reverse: true,
@@ -580,43 +649,63 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _inputMensaje() {
-  if (_usuarioBloqueado) return const SizedBox.shrink(); // Ocultamos si está bloqueado
+    if (_usuarioBloqueado) return const SizedBox.shrink();
 
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-    ),
-    child: SafeArea(
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: _isSending ? null : _subirImagen,
-            icon: Icon(Icons.add_photo_alternate, color: Colors.blue.shade400),
-          ),
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: InputDecoration(
-                hintText: 'Escribe un mensaje...',
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-            ),
-          ),
-          IconButton.filled(
-            onPressed: _isSending ? null : _enviarMensaje,
-            style: IconButton.styleFrom(backgroundColor: Colors.blue.shade600),
-            icon: _isSending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send, color: Colors.white),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
           ),
         ],
       ),
-    ),
-  );
-}
+      child: SafeArea(
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: _isSending ? null : _subirImagen,
+              icon: Icon(Icons.add_photo_alternate, color: Colors.blue.shade400),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Escribe un mensaje...',
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+            ),
+            IconButton.filled(
+              onPressed: _isSending ? null : _enviarMensaje,
+              style: IconButton.styleFrom(backgroundColor: Colors.blue.shade600),
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _bannerEstado() {
     if (_usuarioBloqueado) {
@@ -679,20 +768,28 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blue, // Pintar la barra de azul
-        foregroundColor: Colors.white, // Hace que la flecha de volver y los iconos sean blancos
-        elevation: 0, // Elimina sombras para un diseño limpio
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Row(
           children: [
             CircleAvatar(
               radius: 18,
               backgroundColor: _usuarioBloqueado ? Colors.red[100] : Colors.blue[100],
-              backgroundImage: (!_usuarioBloqueado && widget.otroUsuarioFoto != null && widget.otroUsuarioFoto!.isNotEmpty)
+              backgroundImage: (!_usuarioBloqueado &&
+                      widget.otroUsuarioFoto != null &&
+                      widget.otroUsuarioFoto!.isNotEmpty)
                   ? NetworkImage(widget.otroUsuarioFoto!)
                   : null,
-              child: (!_usuarioBloqueado && widget.otroUsuarioFoto != null && widget.otroUsuarioFoto!.isNotEmpty)
+              child: (!_usuarioBloqueado &&
+                      widget.otroUsuarioFoto != null &&
+                      widget.otroUsuarioFoto!.isNotEmpty)
                   ? null
-                  : Icon(_usuarioBloqueado ? Icons.block : Icons.person, size: 20, color: _usuarioBloqueado ? Colors.red : Colors.blue),
+                  : Icon(
+                      _usuarioBloqueado ? Icons.block : Icons.person,
+                      size: 20,
+                      color: _usuarioBloqueado ? Colors.red : Colors.blue,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -701,7 +798,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 children: [
                   Text(
                     widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const Text(
@@ -718,6 +819,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             onPressed: () async {
               await _verificarBloqueoExistente();
               await _cargarMensajes();
+              await _marcarNotificacionesMensajeComoLeidas();
             },
             icon: const Icon(Icons.refresh),
           ),
