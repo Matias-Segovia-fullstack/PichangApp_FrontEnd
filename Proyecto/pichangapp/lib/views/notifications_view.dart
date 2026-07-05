@@ -4,7 +4,14 @@ import '../models/notificacion.dart';
 import '../services/api_service.dart';
 
 class NotificationsView extends StatefulWidget {
-  const NotificationsView({super.key});
+  final VoidCallback? onNotificationsChanged;
+  final int refreshVersion;
+
+  const NotificationsView({
+    super.key,
+    this.onNotificationsChanged,
+    this.refreshVersion = 0,
+  });
 
   @override
   State<NotificationsView> createState() => _NotificationsViewState();
@@ -15,6 +22,7 @@ class _NotificationsViewState extends State<NotificationsView> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   bool _isLoading = true;
+  bool _actualizandoSilencioso = false;
   String? _error;
   List<Notificacion> _notificaciones = [];
 
@@ -24,11 +32,28 @@ class _NotificationsViewState extends State<NotificationsView> {
     _cargarNotificaciones();
   }
 
-  Future<void> _cargarNotificaciones() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void didUpdateWidget(covariant NotificationsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.refreshVersion != oldWidget.refreshVersion) {
+      _cargarNotificaciones(silencioso: true);
+    }
+  }
+
+  Future<void> _cargarNotificaciones({bool silencioso = false}) async {
+    if (_actualizandoSilencioso && silencioso) return;
+
+    if (silencioso) {
+      _actualizandoSilencioso = true;
+    }
+
+    if (!silencioso && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final userIdString = await _storage.read(key: 'user_id');
@@ -58,14 +83,26 @@ class _NotificationsViewState extends State<NotificationsView> {
       setState(() {
         _notificaciones = notificaciones;
         _isLoading = false;
+        _error = null;
       });
+
+      widget.onNotificationsChanged?.call();
     } catch (e) {
       if (!mounted) return;
+
+      if (silencioso) {
+        debugPrint('No se pudieron actualizar notificaciones en segundo plano: $e');
+        return;
+      }
 
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
+    } finally {
+      if (silencioso) {
+        _actualizandoSilencioso = false;
+      }
     }
   }
 
@@ -91,6 +128,8 @@ class _NotificationsViewState extends State<NotificationsView> {
             );
           }).toList();
         });
+
+        widget.onNotificationsChanged?.call();
       }
     }
 
@@ -137,7 +176,7 @@ class _NotificationsViewState extends State<NotificationsView> {
 
   Widget _estadoVacio() {
     return RefreshIndicator(
-      onRefresh: _cargarNotificaciones,
+      onRefresh: () => _cargarNotificaciones(),
       child: ListView(
         padding: const EdgeInsets.all(28),
         children: [
@@ -165,7 +204,7 @@ class _NotificationsViewState extends State<NotificationsView> {
           const SizedBox(height: 22),
           Center(
             child: ElevatedButton.icon(
-              onPressed: _cargarNotificaciones,
+              onPressed: () => _cargarNotificaciones(),
               icon: const Icon(Icons.refresh),
               label: const Text('Recargar'),
             ),
@@ -196,7 +235,7 @@ class _NotificationsViewState extends State<NotificationsView> {
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              onPressed: _cargarNotificaciones,
+              onPressed: () => _cargarNotificaciones(),
               icon: const Icon(Icons.refresh),
               label: const Text('Intentar nuevamente'),
             ),
@@ -210,7 +249,7 @@ class _NotificationsViewState extends State<NotificationsView> {
     final noLeidas = _notificaciones.where((n) => !n.leida).length;
 
     return RefreshIndicator(
-      onRefresh: _cargarNotificaciones,
+      onRefresh: () => _cargarNotificaciones(),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         itemCount: _notificaciones.length + 1,
@@ -348,7 +387,7 @@ class _NotificationsViewState extends State<NotificationsView> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            onPressed: _cargarNotificaciones,
+            onPressed: () => _cargarNotificaciones(),
             icon: const Icon(Icons.refresh),
           ),
         ],
