@@ -30,6 +30,10 @@ class ApiService {
     return 'http://$_serverIp:8004';
   }
 
+  static String get notificacionBaseUrl {
+  return 'http://$_serverIp:8083';
+}
+
 
   Future<bool> registrarUsuario(Map<String, dynamic> userData) async {
     try {
@@ -432,4 +436,66 @@ class ApiService {
       return false;
     }
   }
+
+  Future<List<dynamic>> obtenerNotificacionesUsuario({
+  required int usuarioId,
+  required String token,
+}) async {
+  try {
+    final response = await http
+        .get(
+          Uri.parse('$notificacionBaseUrl/api/notificaciones/user/$usuarioId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data;
+      }
+
+      return [];
+    }
+
+    debugPrint('Error obtener notificaciones: ${response.statusCode}');
+    debugPrint('Respuesta backend: ${response.body}');
+    throw Exception('Error notificaciones: ${response.statusCode}');
+  } catch (e) {
+    debugPrint('Error cliente obtener notificaciones: $e');
+    rethrow;
+  }
+}
+
+Future<bool> marcarNotificacionComoLeida({
+  required int notificacionId,
+  required String token,
+}) async {
+  try {
+    final response = await http
+        .put(
+          Uri.parse('$notificacionBaseUrl/api/notificaciones/$notificacionId/leida'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return true;
+    }
+
+    debugPrint('Error marcar notificación como leída: ${response.statusCode}');
+    debugPrint('Respuesta backend: ${response.body}');
+    return false;
+  } catch (e) {
+    debugPrint('Error cliente marcar notificación: $e');
+    return false;
+  }
+}
 }
