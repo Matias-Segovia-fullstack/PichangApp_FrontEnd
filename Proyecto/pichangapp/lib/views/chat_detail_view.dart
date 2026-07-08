@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/mensaje_chat.dart';
@@ -34,16 +34,48 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   bool _isLoading = true;
   bool _isSending = false;
   bool _isBlocking = false;
+  bool _verificandoBloqueo = false;
+
+  // Estado general del chat bloqueado.
   bool _usuarioBloqueado = false;
+
+  // Dirección del bloqueo.
+  // Esto evita que el usuario bloqueado pueda desbloquear el chat.
+  bool _yoBloqueeAlOtro = false;
+  bool _meBloqueoElOtro = false;
+
   bool _marcandoNotificacionesMensaje = false;
 
+  // Realtime original para mensajes.
   RealtimeChannel? _realtimeChannel;
+
+  // Realtime nuevo para bloqueo/desbloqueo.
+  RealtimeChannel? _bloqueosRealtimeChannel;
+
+  // Fallback por si Supabase Realtime no está habilitado en la tabla bloqueos.
+  Timer? _bloqueosFallbackTimer;
 
   String? _error;
   List<MensajeChat> _mensajes = [];
 
   int get otroUsuarioId {
     return widget.sala.obtenerOtroUsuarioId(widget.miUsuarioId);
+  }
+
+  String _textoEstadoAppBar() {
+    if (_yoBloqueeAlOtro) {
+      return 'Bloqueado por ti';
+    }
+
+    if (_meBloqueoElOtro) {
+      return 'Te bloqueó';
+    }
+
+    if (_usuarioBloqueado) {
+      return 'Chat bloqueado';
+    }
+
+    return 'Chat Activo';
   }
 
   @override
@@ -54,6 +86,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   @override
   void dispose() {
+    _bloqueosFallbackTimer?.cancel();
+    _bloqueosRealtimeChannel?.unsubscribe();
     _realtimeChannel?.unsubscribe();
     _messageController.dispose();
     super.dispose();
@@ -67,7 +101,14 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     // No toca Supabase Realtime ni modifica la recepción/envío del chat.
     await _marcarNotificacionesMensajeComoLeidas();
 
+    // Realtime original de mensajes. Se mantiene intacto.
     _conectarWebSocket();
+
+    // Realtime nuevo para bloqueo/desbloqueo.
+    _conectarRealtimeBloqueos();
+
+    // Respaldo si Supabase Realtime no está habilitado en la tabla bloqueos.
+    _iniciarFallbackBloqueos();
   }
 
   Future<void> _marcarNotificacionesMensajeComoLeidas({
@@ -147,17 +188,132 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         .subscribe();
   }
 
-  Future<void> _verificarBloqueoExistente() async {
-    final existeBloqueo = await _apiService.existeBloqueoEntreUsuarios(
-      usuarioAId: widget.miUsuarioId,
-      usuarioBId: otroUsuarioId,
+  void _conectarRealtimeBloqueos() {
+    debugPrint(
+      'Iniciando conexión Supabase Realtime para bloqueos entre ${widget.miUsuarioId} y $otroUsuarioId',
     );
 
-    if (!mounted) return;
+    _bloqueosRealtimeChannel = Supabase.instance.client
+        .channel('public:bloqueos:chat_${widget.miUsuarioId}_$otroUsuarioId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'bloqueos',
+          callback: (payload) {
+            debugPrint('Cambio INSERT recibido en bloqueos');
 
-    setState(() {
-      _usuarioBloqueado = existeBloqueo;
-    });
+            final data = payload.newRecord;
+
+            if (_bloqueoAfectaEsteChat(data)) {
+              _verificarBloqueoExistente();
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'bloqueos',
+          callback: (payload) {
+            debugPrint('Cambio DELETE recibido en bloqueos');
+
+            // En DELETE Supabase puede no entregar todas las columnas si la tabla
+            // no tiene REPLICA IDENTITY FULL. Por seguridad verificamos igual.
+            _verificarBloqueoExistente();
+          },
+        )
+        .subscribe();
+  }
+
+  bool _bloqueoAfectaEsteChat(Map<String, dynamic> data) {
+    final origen = int.tryParse(
+      (data['id_usuario_origen'] ??
+                  data['idUsuarioOrigen'] ??
+                  data['usuario_origen_id'] ??
+                  data['usuarioOrigenId'])
+              ?.toString() ??
+          '',
+    );
+
+    final bloqueado = int.tryParse(
+      (data['id_usuario_bloqueado'] ??
+                  data['idUsuarioBloqueado'] ??
+                  data['usuario_bloqueado_id'] ??
+                  data['usuarioBloqueadoId'])
+              ?.toString() ??
+          '',
+    );
+
+    if (origen == null || bloqueado == null) {
+      return false;
+    }
+
+    final yo = widget.miUsuarioId;
+    final otro = otroUsuarioId;
+
+    final yoBloqueeAlOtro = origen == yo && bloqueado == otro;
+    final meBloqueoElOtro = origen == otro && bloqueado == yo;
+
+    return yoBloqueeAlOtro || meBloqueoElOtro;
+  }
+
+  void _iniciarFallbackBloqueos() {
+    _bloqueosFallbackTimer?.cancel();
+
+    _bloqueosFallbackTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) {
+        if (!mounted) return;
+        _verificarBloqueoExistente();
+      },
+    );
+  }
+
+  Future<void> _verificarBloqueoExistente() async {
+    if (_verificandoBloqueo) return;
+
+    _verificandoBloqueo = true;
+
+    try {
+      final yoBloqueeAlOtro = await _apiService.usuarioBloqueoA(
+        usuarioOrigenId: widget.miUsuarioId,
+        usuarioBloqueadoId: otroUsuarioId,
+      );
+
+      final meBloqueoElOtro = await _apiService.usuarioBloqueoA(
+        usuarioOrigenId: otroUsuarioId,
+        usuarioBloqueadoId: widget.miUsuarioId,
+      );
+
+      // Fallback: si por algún motivo no se pudo determinar la dirección,
+      // igual verificamos si existe bloqueo entre ambos.
+      // Si existe bloqueo pero no sabemos quién bloqueó, se deshabilita el desbloqueo.
+      bool existeBloqueoEntreAmbos = yoBloqueeAlOtro || meBloqueoElOtro;
+
+      if (!existeBloqueoEntreAmbos) {
+        existeBloqueoEntreAmbos = await _apiService.existeBloqueoEntreUsuarios(
+          usuarioAId: widget.miUsuarioId,
+          usuarioBId: otroUsuarioId,
+        );
+      }
+
+      if (!mounted) return;
+
+      final cambioEstado = _yoBloqueeAlOtro != yoBloqueeAlOtro ||
+          _meBloqueoElOtro != meBloqueoElOtro ||
+          _usuarioBloqueado != existeBloqueoEntreAmbos;
+
+      if (cambioEstado) {
+        setState(() {
+          _yoBloqueeAlOtro = yoBloqueeAlOtro;
+          _meBloqueoElOtro = meBloqueoElOtro;
+          _usuarioBloqueado = existeBloqueoEntreAmbos;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error verificando bloqueo en tiempo real: $e');
+    } finally {
+      _verificandoBloqueo = false;
+    }
   }
 
   Future<void> _cargarMensajes() async {
@@ -384,12 +540,14 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
       if (!mounted) return;
 
-      setState(() {
-        _isBlocking = false;
-        _usuarioBloqueado = bloqueado;
-      });
-
       if (bloqueado) {
+        setState(() {
+          _isBlocking = false;
+          _usuarioBloqueado = true;
+          _yoBloqueeAlOtro = true;
+          _meBloqueoElOtro = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -397,7 +555,14 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             ),
           ),
         );
+
+        // Refuerzo local: por si el backend tarda en reflejar el cambio.
+        await _verificarBloqueoExistente();
       } else {
+        setState(() {
+          _isBlocking = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -422,6 +587,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _confirmarDesbloqueo() async {
+    if (!_yoBloqueeAlOtro) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No puedes desbloquear este chat porque el bloqueo lo realizó el otro usuario.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final nombreUsuario = widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId';
 
     final confirmar = await showDialog<bool>(
@@ -499,7 +675,21 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _desbloquearUsuario() async {
-    if (_isBlocking || !_usuarioBloqueado) {
+    if (_isBlocking) {
+      return;
+    }
+
+    if (!_yoBloqueeAlOtro) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No puedes desbloquear este chat porque el bloqueo lo realizó el otro usuario.',
+          ),
+        ),
+      );
+
       return;
     }
 
@@ -515,13 +705,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
       if (!mounted) return;
 
-      setState(() {
-        _isBlocking = false;
-        if (desbloqueado) {
-          _usuarioBloqueado = false;
-        }
-      });
-
       if (desbloqueado) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -530,9 +713,22 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         );
 
         await _verificarBloqueoExistente();
-        await _cargarMensajes();
-        await _marcarNotificacionesMensajeComoLeidas();
+
+        if (!mounted) return;
+
+        setState(() {
+          _isBlocking = false;
+        });
+
+        if (!_usuarioBloqueado) {
+          await _cargarMensajes();
+          await _marcarNotificacionesMensajeComoLeidas();
+        }
       } else {
+        setState(() {
+          _isBlocking = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No se pudo desbloquear al usuario. Revisa msvc-seguridad.'),
@@ -708,6 +904,38 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _bannerEstado() {
+    if (_yoBloqueeAlOtro) {
+      return Container(
+        width: double.infinity,
+        color: Colors.red[50],
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'Bloqueaste a ${widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId'}. El chat está deshabilitado hasta que tú lo desbloquees.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    if (_meBloqueoElOtro) {
+      return Container(
+        width: double.infinity,
+        color: Colors.red[50],
+        padding: const EdgeInsets.all(12),
+        child: const Text(
+          'Este usuario te bloqueó. No puedes enviar mensajes ni desbloquear este chat.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
     if (_usuarioBloqueado) {
       return Container(
         width: double.infinity,
@@ -737,7 +965,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _botonBloquear() {
-    if (_usuarioBloqueado) {
+    if (_yoBloqueeAlOtro) {
       return IconButton(
         onPressed: _isBlocking ? null : _confirmarDesbloqueo,
         icon: _isBlocking
@@ -748,6 +976,22 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               )
             : const Icon(Icons.lock_open, color: Colors.green),
         tooltip: 'Desbloquear usuario',
+      );
+    }
+
+    if (_meBloqueoElOtro) {
+      return IconButton(
+        onPressed: null,
+        icon: Icon(Icons.lock, color: Colors.grey.shade400),
+        tooltip: 'No puedes desbloquear un bloqueo realizado por el otro usuario',
+      );
+    }
+
+    if (_usuarioBloqueado) {
+      return IconButton(
+        onPressed: null,
+        icon: Icon(Icons.lock, color: Colors.grey.shade400),
+        tooltip: 'Chat bloqueado',
       );
     }
 
@@ -805,9 +1049,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const Text(
-                    'Chat Activo',
-                    style: TextStyle(fontSize: 12, color: Colors.white70),
+                  Text(
+                    _textoEstadoAppBar(),
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
                   ),
                 ],
               ),

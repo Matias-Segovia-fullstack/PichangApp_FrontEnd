@@ -574,4 +574,62 @@ Future<int> marcarNotificacionesMensajeComoLeidas({
   }
 }
 
+Future<List<dynamic>> listarBloqueosPorUsuario({
+  required int usuarioId,
+}) async {
+  try {
+    final response = await http
+        .get(
+          Uri.parse('$seguridadBaseUrl/api/safety/bloqueos/user/$usuarioId'),
+          headers: {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data;
+      }
+
+      return [];
+    }
+
+    debugPrint('Error listar bloqueos por usuario: ${response.statusCode}');
+    debugPrint('Respuesta backend: ${response.body}');
+    return [];
+  } catch (e) {
+    debugPrint('Error cliente listar bloqueos por usuario: $e');
+    return [];
+  }
+}
+
+Future<bool> usuarioBloqueoA({
+  required int usuarioOrigenId,
+  required int usuarioBloqueadoId,
+}) async {
+  try {
+    final bloqueos = await listarBloqueosPorUsuario(
+      usuarioId: usuarioOrigenId,
+    );
+
+    for (final item in bloqueos) {
+      if (item is! Map) continue;
+
+      final idBloqueado = int.tryParse(
+        item['idUsuarioBloqueado']?.toString() ?? '',
+      );
+
+      if (idBloqueado == usuarioBloqueadoId) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (e) {
+    debugPrint('Error verificando dirección del bloqueo: $e');
+    return false;
+  }
+}
+
 }
