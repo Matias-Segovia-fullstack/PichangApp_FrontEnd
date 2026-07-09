@@ -26,7 +26,12 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('¿No tienes cuenta? Regístrate aquí'));
+      final linkRegistro = find.text('¿No tienes cuenta? Regístrate aquí');
+
+      await tester.ensureVisible(linkRegistro);
+      await tester.pumpAndSettle();
+
+      await tester.tap(linkRegistro);
       await tester.pumpAndSettle();
 
       expect(find.text('Crear cuenta deportiva'), findsOneWidget);
@@ -57,7 +62,12 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('¿No tienes cuenta? Regístrate aquí'));
+      final linkRegistro = find.text('¿No tienes cuenta? Regístrate aquí');
+
+      await tester.ensureVisible(linkRegistro);
+      await tester.pumpAndSettle();
+
+      await tester.tap(linkRegistro);
       await tester.pumpAndSettle();
 
       await tester.ensureVisible(find.text('Registrarme'));
