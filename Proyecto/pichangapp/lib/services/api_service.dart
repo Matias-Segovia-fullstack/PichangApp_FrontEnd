@@ -30,6 +30,10 @@ class ApiService {
     return 'http://$_serverIp:8004';
   }
 
+  static String get notificacionBaseUrl {
+  return 'http://$_serverIp:8083';
+}
+
 
   Future<bool> registrarUsuario(Map<String, dynamic> userData) async {
     try {
@@ -432,4 +436,200 @@ class ApiService {
       return false;
     }
   }
+
+  Future<bool?> tokenSigueVigente(String token) async {
+  try {
+    final response = await http
+        .get(
+          Uri.parse('$usuarioBaseUrl/api/users/me'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode == 200) {
+      return true;
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      return false;
+    }
+
+    return null;
+  } catch (e) {
+    debugPrint('No se pudo validar token: $e');
+    return null;
+  }
+}
+
+Future<List<dynamic>> obtenerNotificacionesUsuario({
+  required int usuarioId,
+}) async {
+  try {
+    final response = await http
+        .get(
+          Uri.parse('$notificacionBaseUrl/api/notificaciones/user/$usuarioId'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data;
+      }
+
+      return [];
+    }
+
+    debugPrint('Error obtener notificaciones: ${response.statusCode}');
+    debugPrint('Respuesta backend: ${response.body}');
+    return [];
+  } catch (e) {
+    debugPrint('Error cliente obtener notificaciones: $e');
+    return [];
+  }
+}
+
+Future<bool> marcarNotificacionComoLeida({
+  required int notificacionId,
+}) async {
+  try {
+    final response = await http
+        .put(
+          Uri.parse('$notificacionBaseUrl/api/notificaciones/$notificacionId/leida'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+
+    return response.statusCode == 200 || response.statusCode == 204;
+  } catch (e) {
+    debugPrint('Error cliente marcar notificación como leída: $e');
+    return false;
+  }
+}
+
+bool _valorLeidaComoBool(dynamic valor) {
+  if (valor is bool) {
+    return valor;
+  }
+
+  if (valor is String) {
+    return valor.toLowerCase() == 'true';
+  }
+
+  if (valor is int) {
+    return valor == 1;
+  }
+
+  return false;
+}
+
+Future<int> marcarNotificacionesMensajeComoLeidas({
+  required int usuarioId,
+}) async {
+  try {
+    final data = await obtenerNotificacionesUsuario(
+      usuarioId: usuarioId,
+    );
+
+    int totalMarcadas = 0;
+
+    for (final item in data) {
+      if (item is! Map) continue;
+
+      final id = int.tryParse(item['id']?.toString() ?? '');
+      final tipo = item['tipo']?.toString().toUpperCase().trim() ?? '';
+      final leida = _valorLeidaComoBool(item['leida']);
+
+      if (id == null) continue;
+
+      if (tipo == 'MENSAJE' && !leida) {
+        final ok = await marcarNotificacionComoLeida(
+          notificacionId: id,
+        );
+
+        if (ok) {
+          totalMarcadas++;
+        }
+      }
+    }
+
+    if (totalMarcadas > 0) {
+      debugPrint(
+        'Notificaciones de mensaje marcadas como leídas: $totalMarcadas',
+      );
+    }
+
+    return totalMarcadas;
+  } catch (e) {
+    debugPrint('Error marcando notificaciones de mensaje como leídas: $e');
+    return 0;
+  }
+}
+
+Future<List<dynamic>> listarBloqueosPorUsuario({
+  required int usuarioId,
+}) async {
+  try {
+    final response = await http
+        .get(
+          Uri.parse('$seguridadBaseUrl/api/safety/bloqueos/user/$usuarioId'),
+          headers: {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data;
+      }
+
+      return [];
+    }
+
+    debugPrint('Error listar bloqueos por usuario: ${response.statusCode}');
+    debugPrint('Respuesta backend: ${response.body}');
+    return [];
+  } catch (e) {
+    debugPrint('Error cliente listar bloqueos por usuario: $e');
+    return [];
+  }
+}
+
+Future<bool> usuarioBloqueoA({
+  required int usuarioOrigenId,
+  required int usuarioBloqueadoId,
+}) async {
+  try {
+    final bloqueos = await listarBloqueosPorUsuario(
+      usuarioId: usuarioOrigenId,
+    );
+
+    for (final item in bloqueos) {
+      if (item is! Map) continue;
+
+      final idBloqueado = int.tryParse(
+        item['idUsuarioBloqueado']?.toString() ?? '',
+      );
+
+      if (idBloqueado == usuarioBloqueadoId) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (e) {
+    debugPrint('Error verificando dirección del bloqueo: $e');
+    return false;
+  }
+}
+
 }

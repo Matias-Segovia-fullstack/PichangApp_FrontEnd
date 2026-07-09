@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/deportista.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class MatchSportView extends StatefulWidget {
   const MatchSportView({super.key});
@@ -36,6 +37,7 @@ class _MatchSportViewState extends State<MatchSportView> {
       _isLoading = true;
       _error = null;
       _indiceActual = 0;
+      _isSending = false;
     });
 
     try {
@@ -47,10 +49,21 @@ class _MatchSportViewState extends State<MatchSportView> {
       }
 
       final userId = int.tryParse(userIdString);
-      if (userId == null) throw Exception('El ID del usuario no es válido.');
 
-      final usuariosRaw = await _apiService.descubrirUsuarios(excludeId: userId, token: token);
-      final usuariosInteractuados = await _apiService.obtenerUsuariosInteractuados(usuarioId: userId);
+      if (userId == null) {
+        throw Exception('El ID del usuario no es válido.');
+      }
+
+      final usuariosRaw = await _apiService.descubrirUsuarios(
+        excludeId: userId,
+        token: token,
+      );
+
+      final usuariosInteractuados =
+          await _apiService.obtenerUsuariosInteractuados(
+        usuarioId: userId,
+      );
+
       final usuariosInteractuadosSet = usuariosInteractuados.toSet();
 
       final deportistas = usuariosRaw
@@ -68,205 +81,312 @@ class _MatchSportViewState extends State<MatchSportView> {
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _error = _limpiarError(e);
         _isLoading = false;
+        _isSending = false;
       });
     }
   }
 
   Future<void> _enviarInteraccion(String tipo) async {
-  // Nota: Ya no verificamos _indiceActual aquí porque el Dismissible 
-  // dispara esto para la tarjeta específica que ya está en proceso de irse.
-  if (_miUsuarioId == null) return;
+    if (_miUsuarioId == null) return;
+    if (_isSending) return;
+    if (_indiceActual >= _deportistas.length) return;
 
-  final deportista = _deportistas[_indiceActual];
-  
-  try {
-    final hayMatch = await _apiService.enviarInteraccion(
-      usuarioOrigenId: _miUsuarioId!,
-      usuarioDestinoId: deportista.id,
-      tipo: tipo,
-    );
+    final deportista = _deportistas[_indiceActual];
 
-    if (!mounted) return;
+    setState(() {
+      _isSending = true;
+    });
 
-    if (hayMatch) {
-      await _mostrarMatch(deportista);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tipo == tipoLike ? 'Like enviado a ${deportista.nombreCompleto}' : 'Dislike enviado a ${deportista.nombreCompleto}')),
+    try {
+      final hayMatch = await _apiService.enviarInteraccion(
+        usuarioOrigenId: _miUsuarioId!,
+        usuarioDestinoId: deportista.id,
+        tipo: tipo,
       );
+
+      if (!mounted) return;
+
+      if (hayMatch) {
+        await _mostrarMatch(deportista);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              tipo == tipoLike
+                  ? 'Like enviado a ${deportista.nombreCompleto}'
+                  : 'Dislike enviado a ${deportista.nombreCompleto}',
+            ),
+          ),
+        );
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _indiceActual++;
+        _isSending = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      final mensaje = _limpiarError(e).toLowerCase();
+
+      if (mensaje.contains('ya ha interactuado') ||
+          mensaje.contains('conflict') ||
+          mensaje.contains('409')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ya habías interactuado con este usuario.'),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $mensaje')),
+        );
+      }
+
+      setState(() {
+        _isSending = false;
+      });
+
+      await _cargarDeportistas();
     }
-    // Solo avanzamos el estado lógico aquí
-    setState(() => _indiceActual++);
-    
-  } catch (e) {
-    if (!mounted) return;
-    final mensaje = _limpiarError(e).toLowerCase();
-    
-    if (mensaje.contains('ya ha interactuado') || mensaje.contains('conflict') || mensaje.contains('409')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ya habías interactuado con este usuario.')));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $mensaje')));
-    }
-    // Si hay error, obligamos a recargar la lista para recuperar la coherencia visual
-    _cargarDeportistas();
   }
-}
 
-  void _avanzarTarjeta() => setState(() { _indiceActual++; _isSending = false; });
-
-  String _limpiarError(Object e) => e.toString().length <= 180 ? e.toString() : '${e.toString().substring(0, 180)}...';
+  String _limpiarError(Object e) {
+    final texto = e.toString();
+    return texto.length <= 180 ? texto : '${texto.substring(0, 180)}...';
+  }
 
   Future<void> _mostrarMatch(Deportista d) async {
-  await showGeneralDialog(
-    context: context,
-    pageBuilder: (context, anim1, anim2) => Container(),
-    transitionBuilder: (context, anim1, anim2, child) {
-      return ScaleTransition(
-        scale: Tween<double>(begin: 0.5, end: 1.0).animate(anim1),
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          contentPadding: EdgeInsets.zero,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Encabezado con color deportivo
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                decoration: const BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                ),
-                child: const Center(
-                  child: Icon(Icons.emoji_events, size: 80, color: Colors.white),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const Text('¡HAY MATCH DEPORTIVO!', 
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blue)),
-                    const SizedBox(height: 15),
-                    Text('${d.nombreCompleto} quiere jugar contigo.', 
-                      textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
-                    const SizedBox(height: 10),
-                    const Text('RabbitMQ debería crear una sala de chat automáticamente.', 
-                      textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('¡Vamos a jugar!', style: TextStyle(color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-  // --- UI Estilizada ---
-  Widget _infoChip(String texto, IconData icono) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(15)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icono, size: 14, color: Colors.blue.shade800),
-          const SizedBox(width: 6),
-          Text(texto, style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Widget _construirTarjeta(Deportista deportista) {
-  return Column(
-    children: [
-      Expanded(
-        child: Dismissible(
-          key: ValueKey(deportista.id),
-          direction: DismissDirection.horizontal,
-          onDismissed: (direction) {
-            final tipo = (direction == DismissDirection.startToEnd) ? tipoLike : tipoDislike;
-            _enviarInteraccion(tipo);
-          },
-          // Pasamos un Container vacío para que no se vea ningún color ni icono
-          background: Container(), 
-          secondaryBackground: Container(),
-          
-          child: Card(
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            elevation: 10,
+    await showGeneralDialog(
+      context: context,
+      pageBuilder: (context, anim1, anim2) => Container(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.5, end: 1.0).animate(anim1),
+          child: AlertDialog(
+            backgroundColor: AppTheme.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
-              side: const BorderSide(color: Colors.blue, width: 1.5),
+              side: const BorderSide(color: AppTheme.border),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            contentPadding: EdgeInsets.zero,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  flex: 3,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-                    child: Image.network(
-                      deportista.fotoUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.blue.shade50,
-                        child: const Icon(Icons.person, size: 80, color: Colors.blue),
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: const BoxDecoration(
+                    color: AppTheme.primary,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(30),
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.emoji_events,
+                      size: 80,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-                Expanded(
-                  flex: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          deportista.edad > 0 
-                              ? '${deportista.nombreCompleto}, ${deportista.edad}' 
-                              : deportista.nombreCompleto,
-                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '¡HAY MATCH DEPORTIVO!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.primarySoft,
                         ),
-                        Text('@${deportista.username}', 
-                             style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 12),
-                        Wrap(spacing: 8, runSpacing: 8, children: [
-                          _infoChip(deportista.deportePrincipal, Icons.sports_soccer),
-                          _infoChip(deportista.posicion, Icons.place),
-                          _infoChip(deportista.altura, Icons.height),
-                        ]),
-                      ],
+                      ),
+                      const SizedBox(height: 15),
+                      Text(
+                        '${d.nombreCompleto} quiere jugar contigo.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'RabbitMQ debería crear una sala de chat automáticamente.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.success,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      '¡Vamos a jugar!',
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _infoChip(String texto, IconData icono) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: AppTheme.primarySoft.withOpacity(0.35),
         ),
       ),
-      _buildActionButtons(),
-    ],
-  );
-}
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: 14, color: AppTheme.primarySoft),
+          const SizedBox(width: 6),
+          Text(
+            texto,
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _construirTarjeta(Deportista deportista) {
+    return Column(
+      children: [
+        Expanded(
+          child: Dismissible(
+            key: ValueKey(deportista.id),
+            direction: DismissDirection.horizontal,
+            onDismissed: (direction) {
+              final tipo = direction == DismissDirection.startToEnd
+                  ? tipoLike
+                  : tipoDislike;
+
+              _enviarInteraccion(tipo);
+            },
+            background: Container(),
+            secondaryBackground: Container(),
+            child: Card(
+              color: AppTheme.surface,
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+                side: const BorderSide(
+                  color: AppTheme.border,
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(30),
+                      ),
+                      child: Image.network(
+                        deportista.fotoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: AppTheme.surfaceAlt,
+                          child: const Icon(
+                            Icons.person,
+                            size: 80,
+                            color: AppTheme.primarySoft,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            deportista.edad > 0
+                                ? '${deportista.nombreCompleto}, ${deportista.edad}'
+                                : deportista.nombreCompleto,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            '@${deportista.username}',
+                            style: const TextStyle(
+                              color: AppTheme.primarySoft,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _infoChip(
+                                deportista.deportePrincipal,
+                                Icons.sports_soccer,
+                              ),
+                              _infoChip(
+                                deportista.posicion,
+                                Icons.place,
+                              ),
+                              _infoChip(
+                                deportista.altura,
+                                Icons.height,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _buildActionButtons(),
+      ],
+    );
+  }
 
   Widget _buildActionButtons() {
     return Padding(
@@ -274,8 +394,16 @@ class _MatchSportViewState extends State<MatchSportView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _btnAccion(Icons.close, Colors.red, () => _enviarInteraccion(tipoDislike)),
-          _btnAccion(Icons.sports_soccer, Colors.green, () => _enviarInteraccion(tipoLike)),
+          _btnAccion(
+            Icons.close,
+            AppTheme.danger,
+            () => _enviarInteraccion(tipoDislike),
+          ),
+          _btnAccion(
+            Icons.sports_soccer,
+            AppTheme.success,
+            () => _enviarInteraccion(tipoLike),
+          ),
         ],
       ),
     );
@@ -283,11 +411,96 @@ class _MatchSportViewState extends State<MatchSportView> {
 
   Widget _btnAccion(IconData icon, Color color, VoidCallback onPressed) {
     return Container(
-      decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))]),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.28),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: FloatingActionButton(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.surface,
         onPressed: _isSending ? null : onPressed,
-        child: _isSending ? const CircularProgressIndicator(strokeWidth: 2) : Icon(icon, size: 32, color: color),
+        child: _isSending
+            ? const CircularProgressIndicator(strokeWidth: 2)
+            : Icon(icon, size: 32, color: color),
+      ),
+    );
+  }
+
+  Widget _estadoVacio() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(26),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.sports,
+              size: 80,
+              color: AppTheme.primarySoft,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'No hay más deportistas',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: _cargarDeportistas,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Recargar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _estadoError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(26),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 70,
+              color: AppTheme.danger,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Error al cargar',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? '',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: _cargarDeportistas,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -295,23 +508,38 @@ class _MatchSportViewState extends State<MatchSportView> {
   @override
   Widget build(BuildContext context) {
     Widget body;
-    if (_isLoading) body = const Center(child: CircularProgressIndicator());
-    else if (_error != null) body = _estadoError();
-    else if (_deportistas.isEmpty || _indiceActual >= _deportistas.length) body = _estadoVacio();
-    else body = _construirTarjeta(_deportistas[_indiceActual]);
+
+    if (_isLoading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      body = _estadoError();
+    } else if (_deportistas.isEmpty || _indiceActual >= _deportistas.length) {
+      body = _estadoVacio();
+    } else {
+      body = _construirTarjeta(_deportistas[_indiceActual]);
+    }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Descubrir', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text(
+          'Descubrir',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: AppTheme.textPrimary,
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: Colors.blue,
-        actions: [IconButton(onPressed: _cargarDeportistas, icon: const Icon(Icons.refresh, color: Colors.white))],
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
+        actions: [
+          IconButton(
+            onPressed: _cargarDeportistas,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: body,
     );
   }
-
-  Widget _estadoVacio() => Center(child: Padding(padding: const EdgeInsets.all(26), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.sports, size: 80, color: Colors.blue), const Text('No hay más deportistas', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)), ElevatedButton.icon(onPressed: _cargarDeportistas, icon: const Icon(Icons.refresh), label: const Text('Recargar'))])));
-  Widget _estadoError() => Center(child: Padding(padding: const EdgeInsets.all(26), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.error_outline, size: 70, color: Colors.red), const Text('Error al cargar', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)), Text(_error ?? ''), ElevatedButton.icon(onPressed: _cargarDeportistas, icon: const Icon(Icons.refresh), label: const Text('Reintentar'))])));
 }

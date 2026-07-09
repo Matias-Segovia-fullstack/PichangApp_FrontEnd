@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'views/home_tabs.dart';
 import 'views/login_view.dart';
+import 'services/api_service.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,11 +24,25 @@ class PichangApp extends StatelessWidget {
 
   Future<bool> checkLoginStatus() async {
     const storage = FlutterSecureStorage();
+    final apiService = ApiService();
 
     final token = await storage.read(key: 'jwt_token');
     final userId = await storage.read(key: 'user_id');
 
-    return token != null && token.isNotEmpty && userId != null && userId.isNotEmpty;
+    if (token == null || token.isEmpty || userId == null || userId.isEmpty) {
+      return false;
+    }
+
+    final estadoToken = await apiService.tokenSigueVigente(token);
+
+    if (estadoToken == false) {
+      await storage.delete(key: 'jwt_token');
+      await storage.delete(key: 'user_id');
+      await storage.delete(key: 'username');
+      return false;
+    }
+
+    return true;
   }
 
   @override
@@ -33,10 +50,7 @@ class PichangApp extends StatelessWidget {
     return MaterialApp(
       title: 'PichangApp',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.darkTheme(),
       home: FutureBuilder<bool>(
         future: checkLoginStatus(),
         builder: (context, snapshot) {
