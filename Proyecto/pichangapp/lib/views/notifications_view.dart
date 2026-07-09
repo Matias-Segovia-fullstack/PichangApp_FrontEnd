@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/notificacion.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class NotificationsView extends StatefulWidget {
   final VoidCallback? onNotificationsChanged;
@@ -91,7 +92,9 @@ class _NotificationsViewState extends State<NotificationsView> {
       if (!mounted) return;
 
       if (silencioso) {
-        debugPrint('No se pudieron actualizar notificaciones en segundo plano: $e');
+        debugPrint(
+          'No se pudieron actualizar notificaciones en segundo plano: $e',
+        );
         return;
       }
 
@@ -138,8 +141,22 @@ class _NotificationsViewState extends State<NotificationsView> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(notificacion.titulo),
-        content: Text(notificacion.mensaje),
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: AppTheme.border),
+        ),
+        title: Text(
+          notificacion.titulo,
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: Text(
+          notificacion.mensaje,
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -168,10 +185,10 @@ class _NotificationsViewState extends State<NotificationsView> {
     }
 
     if (notificacion.esMensaje) {
-      return Colors.blue;
+      return AppTheme.primarySoft;
     }
 
-    return Colors.grey;
+    return AppTheme.textSecondary;
   }
 
   Widget _estadoVacio() {
@@ -181,10 +198,10 @@ class _NotificationsViewState extends State<NotificationsView> {
         padding: const EdgeInsets.all(28),
         children: [
           const SizedBox(height: 120),
-          Icon(
+          const Icon(
             Icons.notifications_none,
             size: 86,
-            color: Colors.blue.shade300,
+            color: AppTheme.primarySoft,
           ),
           const SizedBox(height: 16),
           const Text(
@@ -193,13 +210,14 @@ class _NotificationsViewState extends State<NotificationsView> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
+              color: AppTheme.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           const Text(
             'Cuando tengas un match o recibas mensajes, aparecerán aquí.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.black54),
+            style: TextStyle(color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 22),
           Center(
@@ -221,17 +239,26 @@ class _NotificationsViewState extends State<NotificationsView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 72, color: Colors.red),
+            const Icon(
+              Icons.error_outline,
+              size: 72,
+              color: AppTheme.danger,
+            ),
             const SizedBox(height: 14),
             const Text(
               'No se pudieron cargar las notificaciones',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               _error ?? 'Error desconocido',
               textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -264,7 +291,7 @@ class _NotificationsViewState extends State<NotificationsView> {
                     : '$noLeidas notificaciones sin leer',
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: Colors.black87,
+                  color: AppTheme.textPrimary,
                 ),
               ),
             );
@@ -279,18 +306,20 @@ class _NotificationsViewState extends State<NotificationsView> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: notificacion.leida ? Colors.white : Colors.blue.shade50,
+                color: notificacion.leida
+                    ? AppTheme.surface
+                    : AppTheme.surfaceAlt,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: notificacion.leida
-                      ? Colors.grey.shade200
-                      : Colors.blue.shade200,
+                      ? AppTheme.border
+                      : AppTheme.primarySoft,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withOpacity(0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -299,7 +328,7 @@ class _NotificationsViewState extends State<NotificationsView> {
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: color.withOpacity(0.15),
+                    backgroundColor: color.withOpacity(0.16),
                     child: Icon(_icono(notificacion), color: color),
                   ),
                   const SizedBox(width: 14),
@@ -313,6 +342,7 @@ class _NotificationsViewState extends State<NotificationsView> {
                               child: Text(
                                 notificacion.titulo,
                                 style: TextStyle(
+                                  color: AppTheme.textPrimary,
                                   fontSize: 16,
                                   fontWeight: notificacion.leida
                                       ? FontWeight.w700
@@ -325,7 +355,7 @@ class _NotificationsViewState extends State<NotificationsView> {
                                 width: 10,
                                 height: 10,
                                 decoration: const BoxDecoration(
-                                  color: Colors.blue,
+                                  color: AppTheme.primarySoft,
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -337,15 +367,15 @@ class _NotificationsViewState extends State<NotificationsView> {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Colors.black87,
+                            color: AppTheme.textSecondary,
                             height: 1.25,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           notificacion.fechaCreacion,
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
                             fontSize: 12,
                           ),
                         ),
@@ -376,15 +406,18 @@ class _NotificationsViewState extends State<NotificationsView> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text(
           'Notificaciones',
-          style: TextStyle(fontWeight: FontWeight.w900),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: AppTheme.textPrimary,
+          ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
         actions: [
           IconButton(
             onPressed: () => _cargarNotificaciones(),

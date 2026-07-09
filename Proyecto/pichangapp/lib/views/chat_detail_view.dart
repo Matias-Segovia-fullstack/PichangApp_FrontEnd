@@ -5,6 +5,7 @@ import '../models/mensaje_chat.dart';
 import '../models/sala_chat.dart';
 import '../services/api_service.dart';
 import '../services/media_service.dart';
+import '../theme/app_theme.dart';
 
 class ChatDetailView extends StatefulWidget {
   final SalaChat sala;
@@ -36,23 +37,13 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   bool _isBlocking = false;
   bool _verificandoBloqueo = false;
 
-  // Estado general del chat bloqueado.
   bool _usuarioBloqueado = false;
-
-  // Dirección del bloqueo.
-  // Esto evita que el usuario bloqueado pueda desbloquear el chat.
   bool _yoBloqueeAlOtro = false;
   bool _meBloqueoElOtro = false;
-
   bool _marcandoNotificacionesMensaje = false;
 
-  // Realtime original para mensajes.
   RealtimeChannel? _realtimeChannel;
-
-  // Realtime nuevo para bloqueo/desbloqueo.
   RealtimeChannel? _bloqueosRealtimeChannel;
-
-  // Fallback por si Supabase Realtime no está habilitado en la tabla bloqueos.
   Timer? _bloqueosFallbackTimer;
 
   String? _error;
@@ -63,18 +54,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   String _textoEstadoAppBar() {
-    if (_yoBloqueeAlOtro) {
-      return 'Bloqueado por ti';
-    }
-
-    if (_meBloqueoElOtro) {
-      return 'Te bloqueó';
-    }
-
-    if (_usuarioBloqueado) {
-      return 'Chat bloqueado';
-    }
-
+    if (_yoBloqueeAlOtro) return 'Bloqueado por ti';
+    if (_meBloqueoElOtro) return 'Te bloqueó';
+    if (_usuarioBloqueado) return 'Chat bloqueado';
     return 'Chat Activo';
   }
 
@@ -96,18 +78,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   Future<void> _inicializarChat() async {
     await _verificarBloqueoExistente();
     await _cargarMensajes();
-
-    // Si el usuario abrió el chat, asumimos que ya leyó los mensajes.
-    // No toca Supabase Realtime ni modifica la recepción/envío del chat.
     await _marcarNotificacionesMensajeComoLeidas();
 
-    // Realtime original de mensajes. Se mantiene intacto.
     _conectarWebSocket();
-
-    // Realtime nuevo para bloqueo/desbloqueo.
     _conectarRealtimeBloqueos();
-
-    // Respaldo si Supabase Realtime no está habilitado en la tabla bloqueos.
     _iniciarFallbackBloqueos();
   }
 
@@ -119,8 +93,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     _marcandoNotificacionesMensaje = true;
 
     try {
-      // Cuando llega un mensaje por Realtime, la notificación puede demorar
-      // un poco en crearse por backend/eventos. Este delay ayuda a alcanzarla.
       if (esperarBackend) {
         await Future.delayed(const Duration(milliseconds: 900));
       }
@@ -154,7 +126,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
             final data = payload.newRecord;
 
-            // Adaptar las claves si vienen en snake_case desde la base de datos.
             final mensajeMap = {
               'id': data['id'],
               'salaChatId': data['sala_id'],
@@ -174,9 +145,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 }
               });
 
-              // Si el mensaje llegó mientras estoy dentro del chat,
-              // se considera leído visualmente.
-              // Solo marcamos notificaciones si el mensaje viene del otro usuario.
               if (nuevoMensaje.remitenteId != widget.miUsuarioId) {
                 _marcarNotificacionesMensajeComoLeidas(
                   esperarBackend: true,
@@ -215,9 +183,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           table: 'bloqueos',
           callback: (payload) {
             debugPrint('Cambio DELETE recibido en bloqueos');
-
-            // En DELETE Supabase puede no entregar todas las columnas si la tabla
-            // no tiene REPLICA IDENTITY FULL. Por seguridad verificamos igual.
             _verificarBloqueoExistente();
           },
         )
@@ -250,10 +215,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     final yo = widget.miUsuarioId;
     final otro = otroUsuarioId;
 
-    final yoBloqueeAlOtro = origen == yo && bloqueado == otro;
-    final meBloqueoElOtro = origen == otro && bloqueado == yo;
-
-    return yoBloqueeAlOtro || meBloqueoElOtro;
+    return (origen == yo && bloqueado == otro) ||
+        (origen == otro && bloqueado == yo);
   }
 
   void _iniciarFallbackBloqueos() {
@@ -284,9 +247,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         usuarioBloqueadoId: widget.miUsuarioId,
       );
 
-      // Fallback: si por algún motivo no se pudo determinar la dirección,
-      // igual verificamos si existe bloqueo entre ambos.
-      // Si existe bloqueo pero no sabemos quién bloqueó, se deshabilita el desbloqueo.
       bool existeBloqueoEntreAmbos = yoBloqueeAlOtro || meBloqueoElOtro;
 
       if (!existeBloqueoEntreAmbos) {
@@ -372,9 +332,6 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
     if (enviado) {
       _messageController.clear();
-
-      // El mensaje llegará por Supabase Realtime y se insertará automáticamente.
-      // No se fuerza recarga para no romper el comportamiento realtime existente.
     } else {
       await _verificarBloqueoExistente();
 
@@ -419,9 +376,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
         if (!mounted) return;
 
-        if (enviado) {
-          // El mensaje llegará por Supabase Realtime y se insertará automáticamente.
-        } else {
+        if (!enviado) {
           await _verificarBloqueoExistente();
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -452,7 +407,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppTheme.border),
+        ),
         contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -460,59 +419,57 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: AppTheme.danger.withOpacity(0.14),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.block, size: 48, color: Colors.red),
+              child: const Icon(
+                Icons.block,
+                size: 48,
+                color: AppTheme.danger,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
               'Bloquear Usuario',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
               '¿Quieres bloquear a $nombreUsuario?',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Después del bloqueo, esta sala de chat quedará deshabilitada y no podrán enviarse más mensajes.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
             ),
-            const SizedBox(height: 10),
           ],
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade600,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              backgroundColor: AppTheme.danger,
             ),
-            child: const Text(
-              'Sí, bloquear',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Sí, bloquear'),
           ),
         ],
       ),
@@ -550,13 +507,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Usuario bloqueado. El chat quedó deshabilitado.',
-            ),
+            content: Text('Usuario bloqueado. El chat quedó deshabilitado.'),
           ),
         );
 
-        // Refuerzo local: por si el backend tarda en reflejar el cambio.
         await _verificarBloqueoExistente();
       } else {
         setState(() {
@@ -579,9 +533,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al bloquear usuario: $e'),
-        ),
+        SnackBar(content: Text('Error al bloquear usuario: $e')),
       );
     }
   }
@@ -603,7 +555,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppTheme.border),
+        ),
         contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -611,59 +567,57 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: AppTheme.success.withOpacity(0.14),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.lock_open, size: 48, color: Colors.green),
+              child: const Icon(
+                Icons.lock_open,
+                size: 48,
+                color: AppTheme.success,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
               'Desbloquear Usuario',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
               '¿Quieres desbloquear a $nombreUsuario?',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Después del desbloqueo, esta sala de chat volverá a estar activa y podrán enviarse mensajes nuevamente.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
             ),
-            const SizedBox(height: 10),
           ],
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade600,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              backgroundColor: AppTheme.success,
             ),
-            child: const Text(
-              'Sí, desbloquear',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Sí, desbloquear'),
           ),
         ],
       ),
@@ -675,9 +629,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _desbloquearUsuario() async {
-    if (_isBlocking) {
-      return;
-    }
+    if (_isBlocking) return;
 
     if (!_yoBloqueeAlOtro) {
       if (!mounted) return;
@@ -760,16 +712,20 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         constraints: const BoxConstraints(maxWidth: 260),
         decoration: BoxDecoration(
-          color: esMio ? Colors.blue.shade600 : Colors.grey.shade200,
+          color: esMio ? AppTheme.primary : AppTheme.surfaceAlt,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
             bottomLeft: esMio ? const Radius.circular(20) : Radius.zero,
             bottomRight: esMio ? Radius.zero : const Radius.circular(20),
           ),
+          border: esMio
+              ? null
+              : Border.all(color: AppTheme.border.withOpacity(0.7)),
         ),
         child: Column(
-          crossAxisAlignment: esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment:
+              esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             if (esImagen)
               ClipRRect(
@@ -783,7 +739,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               Text(
                 mensaje.contenido,
                 style: TextStyle(
-                  color: esMio ? Colors.white : Colors.black87,
+                  color: esMio ? Colors.white : AppTheme.textPrimary,
                   fontSize: 15,
                 ),
               ),
@@ -808,6 +764,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             child: Text(
               'Error al cargar mensajes:\n$_error',
               textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary),
             ),
           ),
         ),
@@ -820,6 +777,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           child: Text(
             'Aún no hay mensajes.\nEscribe el primero.',
             textAlign: TextAlign.center,
+            style: TextStyle(color: AppTheme.textSecondary),
           ),
         ),
       );
@@ -850,10 +808,13 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surface,
+        border: const Border(
+          top: BorderSide(color: AppTheme.border),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.18),
             blurRadius: 10,
           ),
         ],
@@ -863,29 +824,45 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           children: [
             IconButton(
               onPressed: _isSending ? null : _subirImagen,
-              icon: Icon(Icons.add_photo_alternate, color: Colors.blue.shade400),
+              icon: const Icon(
+                Icons.add_photo_alternate,
+                color: AppTheme.primarySoft,
+              ),
             ),
             Expanded(
               child: TextField(
                 controller: _messageController,
+                style: const TextStyle(color: AppTheme.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Escribe un mensaje...',
+                  hintStyle: const TextStyle(color: AppTheme.textSecondary),
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: AppTheme.surfaceAlt,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppTheme.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppTheme.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppTheme.primarySoft),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
+                    horizontal: 18,
                     vertical: 10,
                   ),
                 ),
               ),
             ),
+            const SizedBox(width: 8),
             IconButton.filled(
               onPressed: _isSending ? null : _enviarMensaje,
-              style: IconButton.styleFrom(backgroundColor: Colors.blue.shade600),
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+              ),
               icon: _isSending
                   ? const SizedBox(
                       width: 18,
@@ -907,13 +884,13 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     if (_yoBloqueeAlOtro) {
       return Container(
         width: double.infinity,
-        color: Colors.red[50],
+        color: AppTheme.danger.withOpacity(0.12),
         padding: const EdgeInsets.all(12),
         child: Text(
           'Bloqueaste a ${widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId'}. El chat está deshabilitado hasta que tú lo desbloquees.',
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Colors.red,
+            color: AppTheme.danger,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -923,13 +900,13 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     if (_meBloqueoElOtro) {
       return Container(
         width: double.infinity,
-        color: Colors.red[50],
+        color: AppTheme.danger.withOpacity(0.12),
         padding: const EdgeInsets.all(12),
         child: const Text(
           'Este usuario te bloqueó. No puedes enviar mensajes ni desbloquear este chat.',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.red,
+            color: AppTheme.danger,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -939,13 +916,13 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     if (_usuarioBloqueado) {
       return Container(
         width: double.infinity,
-        color: Colors.red[50],
+        color: AppTheme.danger.withOpacity(0.12),
         padding: const EdgeInsets.all(12),
         child: Text(
           'Chat bloqueado entre usuario ${widget.miUsuarioId} y usuario $otroUsuarioId.',
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Colors.red,
+            color: AppTheme.danger,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -954,12 +931,15 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
     return Container(
       width: double.infinity,
-      color: Colors.blue[50],
+      color: AppTheme.primary.withOpacity(0.12),
       padding: const EdgeInsets.all(12),
       child: Text(
         'MatchSocial ${widget.sala.matchSocialId} · Chat habilitado por match',
         textAlign: TextAlign.center,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          color: AppTheme.primarySoft,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -974,7 +954,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 width: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Icon(Icons.lock_open, color: Colors.green),
+            : const Icon(Icons.lock_open, color: AppTheme.success),
         tooltip: 'Desbloquear usuario',
       );
     }
@@ -982,7 +962,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     if (_meBloqueoElOtro) {
       return IconButton(
         onPressed: null,
-        icon: Icon(Icons.lock, color: Colors.grey.shade400),
+        icon: const Icon(Icons.lock, color: AppTheme.textSecondary),
         tooltip: 'No puedes desbloquear un bloqueo realizado por el otro usuario',
       );
     }
@@ -990,7 +970,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     if (_usuarioBloqueado) {
       return IconButton(
         onPressed: null,
-        icon: Icon(Icons.lock, color: Colors.grey.shade400),
+        icon: const Icon(Icons.lock, color: AppTheme.textSecondary),
         tooltip: 'Chat bloqueado',
       );
     }
@@ -1003,7 +983,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               width: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Icon(Icons.block, color: Colors.red),
+          : const Icon(Icons.block, color: AppTheme.danger),
       tooltip: 'Bloquear usuario',
     );
   }
@@ -1011,15 +991,18 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
         elevation: 0,
         title: Row(
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: _usuarioBloqueado ? Colors.red[100] : Colors.blue[100],
+              backgroundColor: _usuarioBloqueado
+                  ? AppTheme.danger.withOpacity(0.16)
+                  : AppTheme.primarySoft.withOpacity(0.18),
               backgroundImage: (!_usuarioBloqueado &&
                       widget.otroUsuarioFoto != null &&
                       widget.otroUsuarioFoto!.isNotEmpty)
@@ -1032,7 +1015,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   : Icon(
                       _usuarioBloqueado ? Icons.block : Icons.person,
                       size: 20,
-                      color: _usuarioBloqueado ? Colors.red : Colors.blue,
+                      color: _usuarioBloqueado
+                          ? AppTheme.danger
+                          : AppTheme.primarySoft,
                     ),
             ),
             const SizedBox(width: 12),
@@ -1045,13 +1030,16 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     _textoEstadoAppBar(),
-                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                 ],
               ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../models/mensaje_chat.dart';
 import '../models/sala_chat.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import 'chat_detail_view.dart';
 
 class ChatsView extends StatefulWidget {
@@ -19,15 +22,74 @@ class _ChatsViewState extends State<ChatsView> {
   String? _error;
   String? _token;
   int? _miUsuarioId;
+
   List<SalaChat> _salas = [];
   Map<int, bool> _salasBloqueadas = {};
   Map<int, String> _nombresUsuarios = {};
   Map<int, String?> _fotosUsuarios = {};
+  Map<int, MensajeChat?> _ultimoMensajePorSala = {};
+  Map<int, DateTime?> _ultimaActividadPorSala = {};
 
   @override
   void initState() {
     super.initState();
     _cargarSalas();
+  }
+
+  DateTime _parseFecha(String? valor) {
+    final fecha = DateTime.tryParse(valor ?? '');
+    return fecha?.toLocal() ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  String _dosDigitos(int numero) {
+    return numero.toString().padLeft(2, '0');
+  }
+
+  String _formatearFechaCorta(DateTime? fecha) {
+    if (fecha == null || fecha.millisecondsSinceEpoch == 0) {
+      return '';
+    }
+
+    final ahora = DateTime.now();
+
+    final esMismoDia = fecha.year == ahora.year &&
+        fecha.month == ahora.month &&
+        fecha.day == ahora.day;
+
+    if (esMismoDia) {
+      return '${_dosDigitos(fecha.hour)}:${_dosDigitos(fecha.minute)}';
+    }
+
+    final esMismoAnio = fecha.year == ahora.year;
+
+    if (esMismoAnio) {
+      return '${_dosDigitos(fecha.day)}/${_dosDigitos(fecha.month)}';
+    }
+
+    return '${_dosDigitos(fecha.day)}/${_dosDigitos(fecha.month)}/${fecha.year.toString().substring(2)}';
+  }
+
+  String _textoUltimoMensaje(MensajeChat? mensaje, int miUsuarioId) {
+    if (mensaje == null) {
+      return 'Aún no hay mensajes';
+    }
+
+    final esMio = mensaje.remitenteId == miUsuarioId;
+    final esImagen =
+        (mensaje.tipoMensaje?.toUpperCase() == 'IMAGEN') ||
+        ((mensaje.mediaUrl ?? '').isNotEmpty);
+
+    if (esImagen) {
+      return esMio ? 'Tú enviaste una imagen' : 'Te envió una imagen';
+    }
+
+    final contenido = mensaje.contenido.trim();
+
+    if (contenido.isEmpty) {
+      return esMio ? 'Tú enviaste un mensaje' : 'Nuevo mensaje';
+    }
+
+    return esMio ? 'Tú: $contenido' : contenido;
   }
 
   Future<void> _cargarSalas() async {
@@ -64,8 +126,12 @@ class _ChatsViewState extends State<ChatsView> {
       final Map<int, bool> bloqueos = {};
       final Map<int, String> nombres = {};
       final Map<int, String?> fotos = {};
+      final Map<int, MensajeChat?> ultimosMensajes = {};
+      final Map<int, DateTime?> ultimasFechas = {};
+
       for (final sala in salas) {
         final otroUsuarioId = sala.obtenerOtroUsuarioId(userId);
+
         if (otroUsuarioId != 0) {
           final existeBloqueo = await _apiService.existeBloqueoEntreUsuarios(
             usuarioAId: userId,
@@ -77,19 +143,21 @@ class _ChatsViewState extends State<ChatsView> {
             usuarioId: otroUsuarioId,
             token: token,
           );
-          
+
           if (otroUsuario != null && otroUsuario['nombre'] != null) {
             String nombreMostrado = otroUsuario['nombre'].toString();
+
             if (otroUsuario['apellido'] != null) {
               nombreMostrado += ' ${otroUsuario['apellido']}';
             }
+
             nombres[otroUsuarioId] = nombreMostrado;
           } else if (otroUsuario != null && otroUsuario['username'] != null) {
             nombres[otroUsuarioId] = otroUsuario['username'].toString();
           } else {
             nombres[otroUsuarioId] = 'Usuario $otroUsuarioId';
           }
-          
+
           if (otroUsuario != null && otroUsuario['profile'] != null) {
             fotos[otroUsuarioId] = otroUsuario['profile']['fotoUrl'];
           } else {
@@ -97,10 +165,41 @@ class _ChatsViewState extends State<ChatsView> {
           }
         } else {
           bloqueos[sala.id] = false;
-          nombres[0] = 'Usuario Desconocido';
+          nombres[0] = 'Usuario desconocido';
           fotos[0] = null;
         }
+
+        final mensajesData = await _apiService.obtenerMensajes(
+          salaId: sala.id,
+          token: token,
+        );
+
+        final mensajes = mensajesData
+            .whereType<Map<String, dynamic>>()
+            .map(MensajeChat.fromJson)
+            .where((m) => m.id != 0)
+            .toList();
+
+        mensajes.sort(
+          (a, b) => _parseFecha(b.fechaEnvio).compareTo(_parseFecha(a.fechaEnvio)),
+        );
+
+        final ultimoMensaje = mensajes.isNotEmpty ? mensajes.first : null;
+        ultimosMensajes[sala.id] = ultimoMensaje;
+
+        ultimasFechas[sala.id] = ultimoMensaje != null
+            ? _parseFecha(ultimoMensaje.fechaEnvio)
+            : _parseFecha(sala.fechaCreacion);
       }
+
+      salas.sort((a, b) {
+        final fechaA =
+            ultimasFechas[a.id] ?? _parseFecha(a.fechaCreacion);
+        final fechaB =
+            ultimasFechas[b.id] ?? _parseFecha(b.fechaCreacion);
+
+        return fechaB.compareTo(fechaA);
+      });
 
       if (!mounted) return;
 
@@ -111,6 +210,8 @@ class _ChatsViewState extends State<ChatsView> {
         _salasBloqueadas = bloqueos;
         _nombresUsuarios = nombres;
         _fotosUsuarios = fotos;
+        _ultimoMensajePorSala = ultimosMensajes;
+        _ultimaActividadPorSala = ultimasFechas;
         _isLoading = false;
       });
     } catch (e) {
@@ -130,16 +231,25 @@ class _ChatsViewState extends State<ChatsView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.chat_bubble_outline, size: 80, color: Colors.blue),
+            const Icon(
+              Icons.chat_bubble_outline,
+              size: 80,
+              color: AppTheme.primarySoft,
+            ),
             const SizedBox(height: 16),
             const Text(
               'Aún no tienes chats',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Cuando tengas un MatchSocial, RabbitMQ creará una sala automáticamente.',
+              'Cuando tengas un match, se creará una sala automáticamente.',
               textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -160,16 +270,25 @@ class _ChatsViewState extends State<ChatsView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 70, color: Colors.red),
+            const Icon(
+              Icons.error_outline,
+              size: 70,
+              color: AppTheme.danger,
+            ),
             const SizedBox(height: 16),
             const Text(
               'No se pudieron cargar los chats',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               _error ?? 'Error desconocido',
               textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -189,77 +308,148 @@ class _ChatsViewState extends State<ChatsView> {
 
     return RefreshIndicator(
       onRefresh: _cargarSalas,
-      child: ListView.separated( // Cambiado a ListView.separated para más orden
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         itemCount: _salas.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final sala = _salas[index];
           final otroUsuarioId = sala.obtenerOtroUsuarioId(miUsuarioId);
-          final bool esBloqueada = _salasBloqueadas[sala.id] ?? false;
-          final String nombreUsuario = _nombresUsuarios[otroUsuarioId] ?? 'Usuario $otroUsuarioId';
-          final String? fotoUrl = _fotosUsuarios[otroUsuarioId];
+          final esBloqueada = _salasBloqueadas[sala.id] ?? false;
+          final nombreUsuario =
+              _nombresUsuarios[otroUsuarioId] ?? 'Usuario $otroUsuarioId';
+          final fotoUrl = _fotosUsuarios[otroUsuarioId];
+          final ultimoMensaje = _ultimoMensajePorSala[sala.id];
+          final ultimaFecha = _ultimaActividadPorSala[sala.id];
 
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24), // Bordes estilo "cancha"
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.withOpacity(0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              leading: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: esBloqueada ? Colors.red : Colors.blue, width: 2),
-                ),
-                child: CircleAvatar(
-                  radius: 25,
-                  backgroundColor: Colors.grey.shade200,
-                  backgroundImage: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
-                      ? NetworkImage(fotoUrl)
-                      : null,
-                  child: (!esBloqueada && fotoUrl != null && fotoUrl.isNotEmpty)
-                      ? null
-                      : Icon(esBloqueada ? Icons.block : Icons.person, color: esBloqueada ? Colors.red : Colors.blue),
-                ),
-              ),
-              title: Text(
-                nombreUsuario,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  esBloqueada ? 'Chat Bloqueado' : 'Match deportivo activo',
-                  style: TextStyle(
-                    color: esBloqueada ? Colors.red.shade600 : Colors.blue.shade600,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+          return InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatDetailView(
+                    sala: sala,
+                    miUsuarioId: miUsuarioId,
+                    token: token,
+                    otroUsuarioNombre: nombreUsuario,
+                    otroUsuarioFoto: fotoUrl,
                   ),
                 ),
+              );
+
+              await _cargarSalas();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: esBloqueada ? Colors.red.shade400 : AppTheme.border,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blue.shade300),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChatDetailView(
-                      sala: sala,
-                      miUsuarioId: miUsuarioId,
-                      token: token,
-                      otroUsuarioNombre: nombreUsuario,
-                      otroUsuarioFoto: fotoUrl,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: esBloqueada
+                            ? AppTheme.danger
+                            : AppTheme.primarySoft,
+                        width: 2,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 26,
+                      backgroundColor: AppTheme.surfaceAlt,
+                      backgroundImage: (!esBloqueada &&
+                              fotoUrl != null &&
+                              fotoUrl.isNotEmpty)
+                          ? NetworkImage(fotoUrl)
+                          : null,
+                      child: (!esBloqueada &&
+                              fotoUrl != null &&
+                              fotoUrl.isNotEmpty)
+                          ? null
+                          : Icon(
+                              esBloqueada ? Icons.block : Icons.person,
+                              color: esBloqueada
+                                  ? AppTheme.danger
+                                  : AppTheme.primarySoft,
+                            ),
                     ),
                   ),
-                );
-              },
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                nombreUsuario,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 17,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatearFechaCorta(ultimaFecha),
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _textoUltimoMensaje(ultimoMensaje, miUsuarioId),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        if (esBloqueada) ...[
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Chat bloqueado',
+                            style: TextStyle(
+                              color: AppTheme.danger,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: AppTheme.textSecondary,
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -282,15 +472,17 @@ class _ChatsViewState extends State<ChatsView> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50, // Fondo más limpio
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Chats Deportivos', style: TextStyle(fontWeight: FontWeight.w900)),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Chats Deportivos',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
         actions: [
-          IconButton(onPressed: _cargarSalas, icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: _cargarSalas,
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
       body: body,

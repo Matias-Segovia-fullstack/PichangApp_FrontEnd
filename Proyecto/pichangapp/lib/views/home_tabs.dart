@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'match_sport_view.dart';
 import 'chats_view.dart';
 import 'notifications_view.dart';
 import 'profile_view.dart';
 import 'login_view.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class HomeTabs extends StatefulWidget {
   const HomeTabs({super.key});
@@ -39,8 +41,6 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
       _cargarContadorNotificaciones();
     });
 
-    // Solo revisa notificaciones.
-    // No toca chat_detail_view.dart ni Supabase Realtime.
     _notificacionesTimer = Timer.periodic(
       const Duration(seconds: 3),
       (_) => _cargarContadorNotificaciones(),
@@ -56,7 +56,6 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Cuando la app vuelve desde segundo plano, revisa sesión y contador.
     if (state == AppLifecycleState.resumed) {
       _validarSesionSiCorresponde();
       _cargarContadorNotificaciones();
@@ -99,9 +98,6 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
 
         await _forzarLogin();
       }
-
-      // Si estadoToken es null, no cerramos sesión.
-      // Puede ser caída de red temporal.
     } finally {
       _validandoSesion = false;
     }
@@ -118,18 +114,9 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
   }
 
   bool _estaLeida(dynamic valor) {
-    if (valor is bool) {
-      return valor;
-    }
-
-    if (valor is String) {
-      return valor.toLowerCase() == 'true';
-    }
-
-    if (valor is int) {
-      return valor == 1;
-    }
-
+    if (valor is bool) return valor;
+    if (valor is String) return valor.toLowerCase() == 'true';
+    if (valor is int) return valor == 1;
     return false;
   }
 
@@ -159,7 +146,6 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
         if (item is Map) {
           return !_estaLeida(item['leida']);
         }
-
         return false;
       }).length;
 
@@ -194,9 +180,9 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
                 minHeight: 18,
               ),
               decoration: BoxDecoration(
-                color: Colors.red,
+                color: AppTheme.danger,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white, width: 1.5),
+                border: Border.all(color: AppTheme.surface, width: 1.5),
               ),
               child: Text(
                 _notificacionesNoLeidas > 99
@@ -243,13 +229,15 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
     ];
 
     return Scaffold(
-      // IndexedStack mantiene vivas las pestañas.
-      // Esto evita reconstrucciones agresivas y ayuda a no tocar comportamiento del chat.
+      backgroundColor: AppTheme.background,
       body: IndexedStack(
         index: _selectedIndex,
         children: screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: AppTheme.surface,
+        selectedItemColor: AppTheme.primarySoft,
+        unselectedItemColor: AppTheme.textSecondary,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import '../services/media_service.dart';
+import '../theme/app_theme.dart';
 import 'login_view.dart';
 import 'edit_profile_view.dart';
 
@@ -47,9 +48,11 @@ class _ProfileViewState extends State<ProfileView> {
 
       setState(() {
         _usuario = usuario;
+
         if (usuario != null && usuario['profile'] != null) {
           _fotoPerfilUrl = usuario['profile']['fotoUrl'];
         }
+
         _isLoading = false;
       });
     } catch (e) {
@@ -66,8 +69,22 @@ class _ProfileViewState extends State<ProfileView> {
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: AppTheme.border),
+        ),
+        title: const Text(
+          'Cerrar sesión',
+          style: TextStyle(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: const Text(
+          '¿Estás seguro de que deseas cerrar sesión?',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -76,6 +93,7 @@ class _ProfileViewState extends State<ProfileView> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
+
               await _storage.delete(key: 'jwt_token');
               await _storage.delete(key: 'user_id');
               await _storage.delete(key: 'username');
@@ -90,7 +108,7 @@ class _ProfileViewState extends State<ProfileView> {
             },
             child: const Text(
               'Cerrar sesión',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: AppTheme.danger),
             ),
           ),
         ],
@@ -110,10 +128,12 @@ class _ProfileViewState extends State<ProfileView> {
 
       if (url != null && url.isNotEmpty) {
         final token = await _storage.read(key: 'jwt_token');
+
         if (token != null) {
           final profileData = Map<String, dynamic>.from(
             _usuario?['profile'] ?? {},
           );
+
           profileData['fotoUrl'] = url;
 
           final success = await _apiService.actualizarPerfilUsuario(
@@ -124,21 +144,25 @@ class _ProfileViewState extends State<ProfileView> {
 
           if (!success) {
             if (!mounted) return;
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
                   'Error: No se pudo guardar la foto en el servidor.',
                 ),
-                backgroundColor: Colors.red,
+                backgroundColor: AppTheme.danger,
               ),
             );
+
             return;
           }
         }
 
         if (!mounted) return;
+
         setState(() {
           _fotoPerfilUrl = url;
+
           if (_usuario != null) {
             _usuario!['profile'] ??= {};
             _usuario!['profile']['fotoUrl'] = url;
@@ -148,16 +172,17 @@ class _ProfileViewState extends State<ProfileView> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Foto de perfil actualizada'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppTheme.success,
           ),
         );
       }
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al subir foto: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.danger,
         ),
       );
     }
@@ -168,12 +193,36 @@ class _ProfileViewState extends State<ProfileView> {
     return value.toString();
   }
 
+  BoxDecoration _panelDecoration() {
+    return BoxDecoration(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: AppTheme.border),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.18),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+
+  Divider _divider() {
+    return const Divider(
+      height: 12,
+      color: AppTheme.border,
+    );
+  }
+
   Widget _infoCard({
     required String titulo,
     required String valor,
     required IconData icon,
     Color? iconColor,
   }) {
+    final color = iconColor ?? AppTheme.primarySoft;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Row(
@@ -181,10 +230,10 @@ class _ProfileViewState extends State<ProfileView> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: (iconColor ?? Colors.blue).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: iconColor ?? Colors.blue, size: 22),
+            child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -195,8 +244,8 @@ class _ProfileViewState extends State<ProfileView> {
                   titulo,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -204,8 +253,8 @@ class _ProfileViewState extends State<ProfileView> {
                   valor,
                   style: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -225,8 +274,8 @@ class _ProfileViewState extends State<ProfileView> {
         title,
         style: const TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
+          fontWeight: FontWeight.w900,
+          color: AppTheme.textPrimary,
         ),
       ),
     );
@@ -239,7 +288,6 @@ class _ProfileViewState extends State<ProfileView> {
     final children = <Widget>[];
 
     if (deporte.toUpperCase() == 'BASKET') {
-      // Para BASKET: mostrar Altura y Posición
       children.addAll([
         _infoCard(
           titulo: 'Altura',
@@ -248,7 +296,7 @@ class _ProfileViewState extends State<ProfileView> {
           iconColor: Colors.cyan,
         ),
         if (atributos['posicion'] != null) ...[
-          Divider(height: 12, color: Colors.grey[200]),
+          _divider(),
           _infoCard(
             titulo: 'Posición',
             valor: _texto(atributos['posicion']),
@@ -258,7 +306,6 @@ class _ProfileViewState extends State<ProfileView> {
         ],
       ]);
     } else if (deporte.toUpperCase() == 'BOXEO') {
-      // Para BOXEO: mostrar Peso y Guardia
       children.addAll([
         _infoCard(
           titulo: 'Peso',
@@ -267,7 +314,7 @@ class _ProfileViewState extends State<ProfileView> {
           iconColor: Colors.purple,
         ),
         if (atributos['guardia'] != null) ...[
-          Divider(height: 12, color: Colors.grey[200]),
+          _divider(),
           _infoCard(
             titulo: 'Guardia',
             valor: _texto(atributos['guardia']),
@@ -286,14 +333,19 @@ class _ProfileViewState extends State<ProfileView> {
 
     if (usuario == null) {
       return const Center(
-        child: Text('No se encontró información del usuario.'),
+        child: Text(
+          'No se encontró información del usuario.',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
       );
     }
 
     final profile = usuario['profile'];
+
     final deporte = profile is Map<String, dynamic>
         ? profile['deportePrincipal']
         : null;
+
     final atributos = profile is Map<String, dynamic>
         ? profile['atributosDeportivos']
         : null;
@@ -303,7 +355,6 @@ class _ProfileViewState extends State<ProfileView> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          // Foto de perfil y nombre
           Center(
             child: Column(
               children: [
@@ -315,23 +366,23 @@ class _ProfileViewState extends State<ProfileView> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(0.3),
-                            blurRadius: 12,
+                            color: AppTheme.primary.withOpacity(0.3),
+                            blurRadius: 14,
                             spreadRadius: 2,
                           ),
                         ],
                       ),
                       child: CircleAvatar(
                         radius: 56,
-                        backgroundColor: Colors.blue[100],
+                        backgroundColor: AppTheme.surfaceAlt,
                         backgroundImage: _fotoPerfilUrl != null
                             ? NetworkImage(_fotoPerfilUrl!)
                             : null,
                         child: _fotoPerfilUrl == null
-                            ? Icon(
+                            ? const Icon(
                                 Icons.person,
                                 size: 64,
-                                color: Colors.blue[400],
+                                color: AppTheme.primarySoft,
                               )
                             : null,
                       ),
@@ -343,12 +394,15 @@ class _ProfileViewState extends State<ProfileView> {
                         onTap: _subirFotoPerfil,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.blue,
+                            color: AppTheme.primary,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
+                            border: Border.all(
+                              color: AppTheme.surface,
+                              width: 3,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withOpacity(0.4),
+                                color: AppTheme.primary.withOpacity(0.4),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -372,38 +426,41 @@ class _ProfileViewState extends State<ProfileView> {
                   style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '@${_texto(usuario['username'])}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    color: AppTheme.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 4,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
+                    color: AppTheme.success.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green[200]!, width: 1),
+                    border: Border.all(
+                      color: AppTheme.success.withOpacity(0.45),
+                      width: 1,
+                    ),
                   ),
                   child: Text(
                     usuario['enabled'] == true
                         ? 'Cuenta activa'
                         : 'Cuenta inactiva',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12,
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.w600,
+                      color: AppTheme.success,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -411,21 +468,9 @@ class _ProfileViewState extends State<ProfileView> {
             ),
           ),
 
-          // Información básica
           _sectionTitle('Información de Cuenta'),
           Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.05),
-                  blurRadius: 4,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
+            decoration: _panelDecoration(),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Column(
               children: [
@@ -433,34 +478,22 @@ class _ProfileViewState extends State<ProfileView> {
                   titulo: 'Email',
                   valor: _texto(usuario['email']),
                   icon: Icons.email_outlined,
-                  iconColor: Colors.blue,
+                  iconColor: AppTheme.primarySoft,
                 ),
-                Divider(height: 12, color: Colors.grey[200]),
+                _divider(),
                 _infoCard(
                   titulo: 'ID Usuario',
                   valor: '#${_texto(usuario['id'])}',
                   icon: Icons.badge_outlined,
-                  iconColor: Colors.indigo,
+                  iconColor: Colors.indigoAccent,
                 ),
               ],
             ),
           ),
 
-          // Información deportiva
           _sectionTitle('Perfil Deportivo'),
           Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.05),
-                  blurRadius: 4,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
+            decoration: _panelDecoration(),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Column(
               children: [
@@ -472,7 +505,7 @@ class _ProfileViewState extends State<ProfileView> {
                   icon: Icons.description_outlined,
                   iconColor: Colors.orange,
                 ),
-                Divider(height: 12, color: Colors.grey[200]),
+                _divider(),
                 _infoCard(
                   titulo: 'Edad',
                   valor: profile is Map<String, dynamic>
@@ -481,18 +514,17 @@ class _ProfileViewState extends State<ProfileView> {
                   icon: Icons.cake_outlined,
                   iconColor: Colors.pink,
                 ),
-                Divider(height: 12, color: Colors.grey[200]),
+                _divider(),
                 _infoCard(
                   titulo: 'Deporte Principal',
-                  valor: deporte ?? 'No definido',
+                  valor: deporte?.toString() ?? 'No definido',
                   icon: Icons.sports_basketball_outlined,
-                  iconColor: Colors.red,
+                  iconColor: Colors.redAccent,
                 ),
-                // Mostrar atributos dinámicos según el deporte
                 if (atributos is Map<String, dynamic> && deporte != null) ...[
-                  Divider(height: 12, color: Colors.grey[200]),
+                  _divider(),
                   _buildDeporteAtributos(
-                    deporte: deporte,
+                    deporte: deporte.toString(),
                     atributos: atributos,
                   ),
                 ],
@@ -500,8 +532,8 @@ class _ProfileViewState extends State<ProfileView> {
             ),
           ),
 
-          // Botones de acción
           const SizedBox(height: 32),
+
           Row(
             children: [
               Expanded(
@@ -510,8 +542,9 @@ class _ProfileViewState extends State<ProfileView> {
                     final resultado = await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            EditProfileView(usuarioActual: _usuario ?? {}),
+                        builder: (_) => EditProfileView(
+                          usuarioActual: _usuario ?? {},
+                        ),
                       ),
                     );
 
@@ -523,7 +556,7 @@ class _ProfileViewState extends State<ProfileView> {
                   label: const Text('Editar Perfil'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: Colors.blue,
+                    backgroundColor: AppTheme.primary,
                   ),
                 ),
               ),
@@ -541,8 +574,8 @@ class _ProfileViewState extends State<ProfileView> {
                   label: const Text('Cerrar Sesión'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: Colors.red[300]!),
-                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: AppTheme.danger),
+                    foregroundColor: AppTheme.danger,
                   ),
                 ),
               ),
@@ -565,13 +598,13 @@ class _ProfileViewState extends State<ProfileView> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red[50],
+                color: AppTheme.danger.withOpacity(0.14),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.error_outline,
                 size: 64,
-                color: Colors.red[400],
+                color: AppTheme.danger,
               ),
             ),
             const SizedBox(height: 24),
@@ -580,7 +613,7 @@ class _ProfileViewState extends State<ProfileView> {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: AppTheme.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -588,7 +621,10 @@ class _ProfileViewState extends State<ProfileView> {
             Text(
               _error ?? 'Error desconocido',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
@@ -600,7 +636,7 @@ class _ProfileViewState extends State<ProfileView> {
                   horizontal: 32,
                   vertical: 14,
                 ),
-                backgroundColor: Colors.blue,
+                backgroundColor: AppTheme.primary,
               ),
             ),
           ],
@@ -617,7 +653,7 @@ class _ProfileViewState extends State<ProfileView> {
       body = const Center(
         child: CircularProgressIndicator(
           strokeWidth: 3,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primarySoft),
         ),
       );
     } else if (_error != null) {
@@ -627,21 +663,23 @@ class _ProfileViewState extends State<ProfileView> {
     }
 
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.blue,
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
         title: const Text(
           'Mi Perfil',
           style: TextStyle(
             fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            color: AppTheme.textPrimary,
           ),
         ),
         actions: [
           IconButton(
             onPressed: _cargarPerfil,
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh),
             tooltip: 'Actualizar',
           ),
         ],
