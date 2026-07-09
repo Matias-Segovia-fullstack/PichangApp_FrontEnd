@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class EditProfileView extends StatefulWidget {
   final Map<String, dynamic> usuarioActual;
@@ -28,6 +29,29 @@ class _EditProfileViewState extends State<EditProfileView> {
   String? _error;
 
   final List<String> _deportes = ['BASKET', 'BOXEO'];
+
+  Future<Position?> _obtenerUbicacion() async {
+  bool servicioHabilitado = await Geolocator.isLocationServiceEnabled();
+
+  if (!servicioHabilitado) {
+    return null;
+  }
+
+  LocationPermission permiso = await Geolocator.checkPermission();
+
+  if (permiso == LocationPermission.denied) {
+    permiso = await Geolocator.requestPermission();
+  }
+
+  if (permiso == LocationPermission.denied ||
+      permiso == LocationPermission.deniedForever) {
+    return null;
+  }
+
+  return await Geolocator.getCurrentPosition(
+    desiredAccuracy: LocationAccuracy.high,
+  );
+}
 
   final Map<String, List<String>> _posicionesPorDeporte = {
     'BASKET': ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'],
@@ -85,6 +109,7 @@ class _EditProfileViewState extends State<EditProfileView> {
   Future<void> _guardarCambios() async {
     final edad = int.tryParse(_edadController.text.trim());
     final numeroDeportivo = int.tryParse(_alturaController.text.trim());
+    
 
     if (edad == null || edad <= 0) {
       _mostrarError('Por favor ingresa una edad válida');
@@ -122,6 +147,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     try {
       final token = await _storage.read(key: 'jwt_token');
       final userId = widget.usuarioActual['id'];
+      final Position? posicion = await _obtenerUbicacion();
 
       if (token == null || token.isEmpty) {
         throw Exception('No existe sesión activa.');
@@ -146,6 +172,8 @@ class _EditProfileViewState extends State<EditProfileView> {
         'deportePrincipal': _deporteSeleccionado,
         'descripcion': _descripcionController.text,
         'atributosDeportivos': atributosDeportivos,
+        'latitud': posicion?.latitude,
+        'longitud': posicion?.longitude,
       };
 
       final success = await _apiService.actualizarPerfilUsuario(
