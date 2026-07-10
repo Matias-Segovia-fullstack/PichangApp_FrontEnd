@@ -138,10 +138,27 @@ class ApiService {
   Future<List<dynamic>> descubrirUsuarios({
     required int excludeId,
     required String token,
+    double distanciaMinKm = 0,
+    double distanciaMaxKm = 50,
+    int edadMin = 18,
+    int edadMax = 80,
+    String sexo = 'TODOS',
   }) async {
+    final uri = Uri.parse('$usuarioBaseUrl/api/users/discover').replace(
+      queryParameters: {
+        'excludeId': excludeId.toString(),
+        'distanciaMinKm': distanciaMinKm.toStringAsFixed(0),
+        'distanciaMaxKm': distanciaMaxKm.toStringAsFixed(0),
+        'edadMin': edadMin.toString(),
+        'edadMax': edadMax.toString(),
+        'sexo': sexo,
+        'diasMaxUbicacion': '30',
+      },
+    );
+
     final response = await http
         .get(
-          Uri.parse('$usuarioBaseUrl/api/users/discover?excludeId=$excludeId'),
+          uri,
           headers: {
             'Authorization': 'Bearer $token',
           },

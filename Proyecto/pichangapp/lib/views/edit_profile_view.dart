@@ -23,38 +23,23 @@ class _EditProfileViewState extends State<EditProfileView> {
   late TextEditingController _alturaController;
   late TextEditingController _descripcionController;
 
+  String? _sexoSeleccionado;
   String? _deporteSeleccionado;
   String? _posicionSeleccionada;
+
   bool _isLoading = false;
-  String? _error;
 
   final List<String> _deportes = ['BASKET', 'BOXEO'];
 
-  Future<Position?> _obtenerUbicacion() async {
-  bool servicioHabilitado = await Geolocator.isLocationServiceEnabled();
-
-  if (!servicioHabilitado) {
-    return null;
-  }
-
-  LocationPermission permiso = await Geolocator.checkPermission();
-
-  if (permiso == LocationPermission.denied) {
-    permiso = await Geolocator.requestPermission();
-  }
-
-  if (permiso == LocationPermission.denied ||
-      permiso == LocationPermission.deniedForever) {
-    return null;
-  }
-
-  return await Geolocator.getCurrentPosition(
-    desiredAccuracy: LocationAccuracy.high,
-  );
-}
+  final List<String> _sexos = [
+    'MASCULINO',
+    'FEMENINO',
+    'OTRO',
+    'PREFIERO_NO_DECIR',
+  ];
 
   final Map<String, List<String>> _posicionesPorDeporte = {
-    'BASKET': ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'],
+    'BASKET': ['Base', 'Escolta', 'Alero', 'Ala Pívot', 'Pívot'],
     'BOXEO': ['Ortodoxa', 'Zurda'],
   };
 
@@ -73,18 +58,32 @@ class _EditProfileViewState extends State<EditProfileView> {
     _edadController = TextEditingController(
       text: profile is Map<String, dynamic> ? (profile['edad']?.toString() ?? '') : '',
     );
+
     _descripcionController = TextEditingController(
       text: profile is Map<String, dynamic> ? (profile['descripcion']?.toString() ?? '') : '',
     );
+
+    _sexoSeleccionado = profile is Map<String, dynamic>
+        ? profile['sexo']?.toString()
+        : null;
+
+    if (!_sexos.contains(_sexoSeleccionado)) {
+      _sexoSeleccionado = 'MASCULINO';
+    }
 
     _deporteSeleccionado = profile is Map<String, dynamic>
         ? profile['deportePrincipal']?.toString()
         : null;
 
+    if (!_deportes.contains(_deporteSeleccionado)) {
+      _deporteSeleccionado = 'BASKET';
+    }
+
     if (_deporteSeleccionado == 'BOXEO') {
       _alturaController = TextEditingController(
         text: atributos is Map<String, dynamic> ? (atributos['peso']?.toString() ?? '') : '',
       );
+
       _posicionSeleccionada = atributos is Map<String, dynamic>
           ? atributos['guardia']?.toString()
           : null;
@@ -92,9 +91,16 @@ class _EditProfileViewState extends State<EditProfileView> {
       _alturaController = TextEditingController(
         text: atributos is Map<String, dynamic> ? (atributos['altura']?.toString() ?? '') : '',
       );
+
       _posicionSeleccionada = atributos is Map<String, dynamic>
           ? atributos['posicion']?.toString()
           : null;
+    }
+
+    final posiciones = _posicionesPorDeporte[_deporteSeleccionado] ?? [];
+
+    if (!posiciones.contains(_posicionSeleccionada)) {
+      _posicionSeleccionada = posiciones.isNotEmpty ? posiciones.first : null;
     }
   }
 
@@ -106,17 +112,44 @@ class _EditProfileViewState extends State<EditProfileView> {
     super.dispose();
   }
 
+  Future<Position?> _obtenerUbicacion() async {
+    final bool servicioHabilitado = await Geolocator.isLocationServiceEnabled();
+
+    if (!servicioHabilitado) {
+      return null;
+    }
+
+    LocationPermission permiso = await Geolocator.checkPermission();
+
+    if (permiso == LocationPermission.denied) {
+      permiso = await Geolocator.requestPermission();
+    }
+
+    if (permiso == LocationPermission.denied ||
+        permiso == LocationPermission.deniedForever) {
+      return null;
+    }
+
+    return Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  }
+
   Future<void> _guardarCambios() async {
     final edad = int.tryParse(_edadController.text.trim());
     final numeroDeportivo = int.tryParse(_alturaController.text.trim());
-    
 
     if (edad == null || edad <= 0) {
       _mostrarError('Por favor ingresa una edad válida');
       return;
     }
 
-    if (_deporteSeleccionado == null) {
+    if (_sexoSeleccionado == null || !_sexos.contains(_sexoSeleccionado)) {
+      _mostrarError('Por favor selecciona un sexo');
+      return;
+    }
+
+    if (_deporteSeleccionado == null || !_deportes.contains(_deporteSeleccionado)) {
       _mostrarError('Por favor selecciona un deporte');
       return;
     }
@@ -141,7 +174,6 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     setState(() {
       _isLoading = true;
-      _error = null;
     });
 
     try {
@@ -168,9 +200,10 @@ class _EditProfileViewState extends State<EditProfileView> {
       }
 
       final datosActualizacion = {
-        'edad': int.parse(_edadController.text),
+        'edad': edad,
+        'sexo': _sexoSeleccionado,
         'deportePrincipal': _deporteSeleccionado,
-        'descripcion': _descripcionController.text,
+        'descripcion': _descripcionController.text.trim(),
         'atributosDeportivos': atributosDeportivos,
         'latitud': posicion?.latitude,
         'longitud': posicion?.longitude,
@@ -192,6 +225,7 @@ class _EditProfileViewState extends State<EditProfileView> {
             duration: Duration(seconds: 2),
           ),
         );
+
         Navigator.pop(context, true);
       } else {
         _mostrarError('No se pudo actualizar el perfil');
@@ -274,6 +308,8 @@ class _EditProfileViewState extends State<EditProfileView> {
     required ValueChanged<String?> onChanged,
     required IconData icon,
   }) {
+    final String? safeValue = items.contains(value) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -287,7 +323,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          value: safeValue,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.blue),
             border: OutlineInputBorder(
@@ -317,6 +353,8 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   @override
   Widget build(BuildContext context) {
+    final bool esBoxeo = _deporteSeleccionado == 'BOXEO';
+
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -346,7 +384,6 @@ class _EditProfileViewState extends State<EditProfileView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Descripción
                   _buildTextField(
                     controller: _descripcionController,
                     label: 'Descripción Deportiva',
@@ -355,8 +392,6 @@ class _EditProfileViewState extends State<EditProfileView> {
                     maxLines: 4,
                   ),
                   const SizedBox(height: 24),
-
-                  // Edad
                   _buildTextField(
                     controller: _edadController,
                     label: 'Edad',
@@ -366,42 +401,46 @@ class _EditProfileViewState extends State<EditProfileView> {
                     suffix: 'años',
                   ),
                   const SizedBox(height: 24),
-
-                  // Deporte Principal
+                  _buildDropdown(
+                    label: 'Sexo',
+                    value: _sexoSeleccionado,
+                    items: _sexos,
+                    onChanged: (valor) {
+                      setState(() {
+                        _sexoSeleccionado = valor;
+                      });
+                    },
+                    icon: Icons.person_search,
+                  ),
+                  const SizedBox(height: 24),
                   _buildDropdown(
                     label: 'Deporte Principal',
                     value: _deporteSeleccionado,
                     items: _deportes,
                     onChanged: (valor) {
+                      if (valor == null) return;
+
                       setState(() {
                         _deporteSeleccionado = valor;
-                        _posicionSeleccionada = null;
+                        _posicionSeleccionada = _posicionesPorDeporte[valor]?.first;
+                        _alturaController.text = valor == 'BOXEO' ? '75' : '180';
                       });
                     },
                     icon: Icons.sports_basketball_outlined,
                   ),
                   const SizedBox(height: 24),
-
-                  // Altura/Peso
                   _buildTextField(
                     controller: _alturaController,
-                    label: _deporteSeleccionado == 'BOXEO' ? 'Peso' : 'Altura',
-                    hint: _deporteSeleccionado == 'BOXEO'
-                        ? 'Ingresa tu peso'
-                        : 'Ingresa tu altura',
-                    icon: _deporteSeleccionado == 'BOXEO'
-                        ? Icons.monitor_weight
-                        : Icons.height,
+                    label: esBoxeo ? 'Peso' : 'Altura',
+                    hint: esBoxeo ? 'Ingresa tu peso' : 'Ingresa tu altura',
+                    icon: esBoxeo ? Icons.monitor_weight : Icons.height,
                     keyboardType: TextInputType.number,
-                    suffix: _deporteSeleccionado == 'BOXEO' ? 'kg' : 'cm',
+                    suffix: esBoxeo ? 'kg' : 'cm',
                   ),
                   const SizedBox(height: 24),
-
-                  // Posición/Guardia
                   if (_deporteSeleccionado != null)
                     _buildDropdown(
-                      label:
-                          _deporteSeleccionado == 'BOXEO' ? 'Guardia' : 'Posición',
+                      label: esBoxeo ? 'Guardia' : 'Posición',
                       value: _posicionSeleccionada,
                       items: _posicionesPorDeporte[_deporteSeleccionado] ?? [],
                       onChanged: (valor) {
@@ -409,21 +448,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                           _posicionSeleccionada = valor;
                         });
                       },
-                      icon: _deporteSeleccionado == 'BOXEO'
+                      icon: esBoxeo
                           ? Icons.sports_martial_arts_outlined
                           : Icons.sports_soccer_outlined,
                     ),
-
                   const SizedBox(height: 40),
-
-                  // Botones
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => Navigator.pop(context),
+                          onPressed: _isLoading ? null : () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(

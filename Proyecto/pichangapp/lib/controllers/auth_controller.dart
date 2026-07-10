@@ -14,7 +14,15 @@ class AuthController {
   final ApiService _apiService = ApiService();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  Future<bool> registrar() async {
+  Future<bool> registrar({
+    required int edad,
+    required String sexo,
+    required String deportePrincipal,
+    required int numeroDeportivo,
+    required String posicionOGuardia,
+    required double latitud,
+    required double longitud,
+  }) async {
     if (emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
         nameController.text.trim().isEmpty ||
@@ -22,6 +30,19 @@ class AuthController {
         usernameController.text.trim().isEmpty) {
       return false;
     }
+
+    final String deporte = deportePrincipal.trim().toUpperCase();
+    final bool esBoxeo = deporte == 'BOXEO';
+
+    final Map<String, dynamic> atributosDeportivos = esBoxeo
+        ? {
+            'peso': numeroDeportivo,
+            'guardia': posicionOGuardia,
+          }
+        : {
+            'altura': numeroDeportivo,
+            'posicion': posicionOGuardia,
+          };
 
     final Map<String, dynamic> userData = {
       'nombre': nameController.text.trim(),
@@ -31,13 +52,13 @@ class AuthController {
       'password': passwordController.text,
       'profile': {
         'descripcion': 'Jugador amateur de PichangApp',
-        'edad': 25,
+        'edad': edad,
+        'sexo': sexo,
         'fotoUrl': 'https://via.placeholder.com/150',
-        'deportePrincipal': 'BASKET',
-        'atributosDeportivos': {
-          'altura': 180,
-          'posicion': 'Base',
-        },
+        'deportePrincipal': esBoxeo ? 'BOXEO' : 'BASKET',
+        'latitud': latitud,
+        'longitud': longitud,
+        'atributosDeportivos': atributosDeportivos,
       },
     };
 

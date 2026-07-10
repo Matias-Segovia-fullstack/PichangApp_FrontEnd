@@ -6,6 +6,7 @@ class Deportista {
   final String email;
   final String descripcion;
   final int edad;
+  final String sexo;
   final String fotoUrl;
   final String deportePrincipal;
   final Map<String, dynamic> atributosDeportivos;
@@ -18,6 +19,7 @@ class Deportista {
     required this.email,
     required this.descripcion,
     required this.edad,
+    required this.sexo,
     required this.fotoUrl,
     required this.deportePrincipal,
     required this.atributosDeportivos,
@@ -42,8 +44,11 @@ class Deportista {
           ? profile['descripcion'] ?? 'Sin descripción deportiva'
           : 'Sin descripción deportiva',
       edad: profile is Map<String, dynamic>
-          ? profile['edad'] ?? 0
+          ? int.tryParse((profile['edad'] ?? '0').toString()) ?? 0
           : 0,
+      sexo: profile is Map<String, dynamic>
+          ? profile['sexo']?.toString() ?? 'Sin sexo'
+          : 'Sin sexo',
       fotoUrl: profile is Map<String, dynamic>
           ? profile['fotoUrl'] ?? 'https://via.placeholder.com/400x500.png?text=PichangApp'
           : 'https://via.placeholder.com/400x500.png?text=PichangApp',
@@ -59,14 +64,23 @@ class Deportista {
   }
 
   String get posicion {
-    final value = atributosDeportivos['posicion'];
+    final value = atributosDeportivos['posicion'] ?? atributosDeportivos['guardia'];
     if (value == null) return 'Sin posición';
     return value.toString();
   }
 
   String get altura {
-    final value = atributosDeportivos['altura'];
-    if (value == null) return 'Sin altura';
-    return '$value cm';
+    final altura = atributosDeportivos['altura'];
+    final peso = atributosDeportivos['peso'];
+
+    if (altura != null) {
+      return '$altura cm';
+    }
+
+    if (peso != null) {
+      return '$peso kg';
+    }
+
+    return 'Sin dato físico';
   }
 }
