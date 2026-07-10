@@ -91,7 +91,7 @@ class _RegisterViewState extends State<RegisterView> {
     final int? numeroDeportivo = int.tryParse(_numeroDeportivoController.text.trim());
 
     if (edad == null || edad < 18) {
-      _mostrarMensaje('Debes ser mayor de edad para usar PichangApp.', Colors.red);
+      _mostrarMensaje('Debes ser mayor de edad para usar MatchFit.', Colors.red);
       return;
     }
 

@@ -46,7 +46,7 @@ class AuthController {
           };
 
     final descripcion = rutController.text.trim().isEmpty
-        ? 'Jugador amateur de PichangApp'
+        ? 'Jugador amateur de MatchFit'
         : rutController.text.trim();
 
     final fotoPerfil = fotoUrl?.trim();

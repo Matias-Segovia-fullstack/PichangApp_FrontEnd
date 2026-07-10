@@ -186,7 +186,7 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         const SizedBox(height: 14),
                         const Text(
-                          'PichangApp',
+                          'MatchFit',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 29,
@@ -196,7 +196,7 @@ class _LoginViewState extends State<LoginView> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Encuentra compañeros deportivos reales',
+                          'Conecta, haz match y arma tu squad deportivo',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: AppTheme.textSecondary,

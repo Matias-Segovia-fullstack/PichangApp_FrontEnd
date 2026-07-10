@@ -425,7 +425,7 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
         'biografia',
         'presentacion',
       ],
-      fallback: 'Jugador amateur de PichangApp',
+      fallback: 'Jugador amateur de MatchFit',
     );
 
     final deportePrincipal = _valorTexto(

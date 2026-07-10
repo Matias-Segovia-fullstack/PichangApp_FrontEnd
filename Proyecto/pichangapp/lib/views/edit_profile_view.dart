@@ -130,7 +130,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     final numeroDeportivo = int.tryParse(_alturaController.text.trim());
 
     if (edad == null || edad < 18) {
-      _mostrarError('Debes ser mayor de edad para usar PichangApp');
+      _mostrarError('Debes ser mayor de edad para usar MatchFit');
       return;
     }
 
