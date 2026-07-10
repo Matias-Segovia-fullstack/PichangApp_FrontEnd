@@ -117,8 +117,17 @@ class _ProfileViewState extends State<ProfileView> {
   }
 
   Future<void> _subirFotoPerfil() async {
-    final userId = _usuario?['id']?.toString();
-    if (userId == null) return;
+    final userId = _usuario?['id'];
+
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo identificar el usuario.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
 
     try {
       final url = await _mediaService.pickCompressAndUploadImage(
@@ -126,56 +135,69 @@ class _ProfileViewState extends State<ProfileView> {
         folder: 'perfil_$userId',
       );
 
-      if (url != null && url.isNotEmpty) {
-        final token = await _storage.read(key: 'jwt_token');
+      if (url == null || url.isEmpty) {
+        return;
+      }
 
-        if (token != null) {
-          final profileData = Map<String, dynamic>.from(
-            _usuario?['profile'] ?? {},
-          );
+      final token = await _storage.read(key: 'jwt_token');
 
-          profileData['fotoUrl'] = url;
-
-          final success = await _apiService.actualizarPerfilUsuario(
-            token: token,
-            userId: userId,
-            datosActualizacion: profileData,
-          );
-
-          if (!success) {
-            if (!mounted) return;
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Error: No se pudo guardar la foto en el servidor.',
-                ),
-                backgroundColor: AppTheme.danger,
-              ),
-            );
-
-            return;
-          }
-        }
-
+      if (token == null || token.isEmpty) {
         if (!mounted) return;
-
-        setState(() {
-          _fotoPerfilUrl = url;
-
-          if (_usuario != null) {
-            _usuario!['profile'] ??= {};
-            _usuario!['profile']['fotoUrl'] = url;
-          }
-        });
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Foto de perfil actualizada'),
-            backgroundColor: AppTheme.success,
+            content: Text('No existe sesión activa. Vuelve a iniciar sesión.'),
+            backgroundColor: AppTheme.danger,
           ),
         );
+
+        return;
       }
+
+      final profileData = Map<String, dynamic>.from(
+        _usuario?['profile'] ?? {},
+      );
+
+      profileData['fotoUrl'] = url;
+
+      final success = await _apiService.actualizarPerfilUsuario(
+        token: token,
+        userId: userId,
+        datosActualizacion: profileData,
+      );
+
+      if (!mounted) return;
+
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: No se pudo guardar la foto en el servidor.'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+
+        return;
+      }
+
+      setState(() {
+        _fotoPerfilUrl = url;
+
+        if (_usuario != null) {
+          _usuario!['profile'] ??= {};
+          _usuario!['profile']['fotoUrl'] = url;
+        }
+      });
+
+      await _cargarPerfil();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto de perfil actualizada'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
