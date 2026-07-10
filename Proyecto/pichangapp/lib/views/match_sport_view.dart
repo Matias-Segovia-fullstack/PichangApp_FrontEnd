@@ -77,7 +77,7 @@ class _MatchSportViewState extends State<MatchSportView> {
 
   double _limitarDistancia(double valor) {
     if (valor < 1) return 1;
-    if (valor > 50) return 50;
+    if (valor > 500) return 500;
     return valor;
   }
 
@@ -307,8 +307,8 @@ class _MatchSportViewState extends State<MatchSportView> {
                     Slider(
                       value: distanciaTemporal,
                       min: 1,
-                      max: 50,
-                      divisions: 49,
+                      max: 500,
+                      divisions: 499,
                       label: '${distanciaTemporal.round()} km',
                       onChanged: (nuevoValor) {
                         setDialogState(() {
@@ -318,7 +318,7 @@ class _MatchSportViewState extends State<MatchSportView> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Base: hasta 1 km. Puedes ampliar la búsqueda hasta 50 km.',
+                      'Base: hasta 1 km. Puedes ampliar la búsqueda hasta 500 km.',
                       style: TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 13,
