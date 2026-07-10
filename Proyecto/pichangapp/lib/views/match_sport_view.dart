@@ -27,7 +27,7 @@ class _MatchSportViewState extends State<MatchSportView> {
   bool _isSending = false;
   String? _error;
 
-  double _distanciaMaxKm = 1;
+  double _distanciaMaxKm = 500;
 
   int _edadMin = 18;
   int _edadMax = 80;
@@ -55,7 +55,7 @@ class _MatchSportViewState extends State<MatchSportView> {
 
     final max = double.tryParse(maxTexto ?? '');
 
-    _distanciaMaxKm = _limitarDistancia(max ?? 1);
+    _distanciaMaxKm = _limitarDistancia(max ?? 500);
 
     _edadMin = int.tryParse(edadMinTexto ?? '') ?? 18;
     _edadMax = int.tryParse(edadMaxTexto ?? '') ?? 80;
@@ -124,8 +124,15 @@ class _MatchSportViewState extends State<MatchSportView> {
       throw Exception('Permiso de ubicación bloqueado. Habilítalo desde el navegador o sistema.');
     }
 
+    final ultimaUbicacion = await Geolocator.getLastKnownPosition();
+
+    if (ultimaUbicacion != null) {
+      return ultimaUbicacion;
+    }
+
     return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      desiredAccuracy: LocationAccuracy.medium,
+      timeLimit: const Duration(seconds: 8),
     );
   }
 
@@ -200,10 +207,14 @@ class _MatchSportViewState extends State<MatchSportView> {
         throw Exception('El ID del usuario no es válido.');
       }
 
-      await _sincronizarUbicacionParaDiscover(
-        token: token,
-        userId: userId,
-      );
+      try {
+        await _sincronizarUbicacionParaDiscover(
+          token: token,
+          userId: userId,
+        );
+      } catch (e) {
+        debugPrint('No se pudo sincronizar ubicación antes de Discover: $e');
+      }
 
       final usuariosRaw = await _apiService.descubrirUsuarios(
         excludeId: userId,
@@ -318,7 +329,7 @@ class _MatchSportViewState extends State<MatchSportView> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Base: hasta 1 km. Puedes ampliar la búsqueda hasta 500 km.',
+                      'Puedes ajustar la búsqueda hasta 500 km.',
                       style: TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 13,

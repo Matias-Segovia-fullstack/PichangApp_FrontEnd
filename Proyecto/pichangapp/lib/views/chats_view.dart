@@ -92,6 +92,74 @@ class _ChatsViewState extends State<ChatsView> {
     return esMio ? 'Tú: $contenido' : contenido;
   }
 
+  String _textoSeguro(dynamic valor) {
+    if (valor == null) return '';
+
+    final texto = valor.toString().trim();
+
+    if (texto.isEmpty || texto.toLowerCase() == 'null') {
+      return '';
+    }
+
+    return texto;
+  }
+
+  int _intSeguro(dynamic valor) {
+    if (valor is int) return valor;
+    if (valor is num) return valor.toInt();
+    return int.tryParse(valor?.toString() ?? '') ?? 0;
+  }
+
+  bool _boolSeguro(dynamic valor) {
+    if (valor is bool) return valor;
+    return valor?.toString().toLowerCase() == 'true';
+  }
+
+  String? _fotoSegura(dynamic valor) {
+    final texto = _textoSeguro(valor);
+    return texto.isEmpty ? null : texto;
+  }
+
+  String _nombreDesdeSalaRaw(Map<String, dynamic> raw, bool soyUsuarioA, int otroUsuarioId) {
+    final nombre = _textoSeguro(
+      soyUsuarioA ? raw['usuarioBNombre'] : raw['usuarioANombre'],
+    );
+
+    if (nombre.isNotEmpty && !nombre.toLowerCase().startsWith('usuario ')) {
+      return nombre;
+    }
+
+    final username = _textoSeguro(
+      soyUsuarioA ? raw['usuarioBUsername'] : raw['usuarioAUsername'],
+    );
+
+    if (username.isNotEmpty) {
+      return username.startsWith('@') ? username : '@$username';
+    }
+
+    if (nombre.isNotEmpty) {
+      return nombre;
+    }
+
+    return 'Usuario $otroUsuarioId';
+  }
+
+  MensajeChat? _ultimoMensajeDesdeRaw(Map<String, dynamic> raw) {
+    final ultimoRaw = raw['ultimoMensaje'];
+
+    if (ultimoRaw is Map<String, dynamic>) {
+      final mensaje = MensajeChat.fromJson(ultimoRaw);
+      return mensaje.id == 0 ? null : mensaje;
+    }
+
+    if (ultimoRaw is Map) {
+      final mensaje = MensajeChat.fromJson(Map<String, dynamic>.from(ultimoRaw));
+      return mensaje.id == 0 ? null : mensaje;
+    }
+
+    return null;
+  }
+
   Future<void> _cargarSalas() async {
     setState(() {
       _isLoading = true;
@@ -117,86 +185,46 @@ class _ChatsViewState extends State<ChatsView> {
         token: token,
       );
 
-      final salas = data
-          .whereType<Map<String, dynamic>>()
-          .map(SalaChat.fromJson)
-          .where((sala) => sala.id != 0)
-          .toList();
-
       final Map<int, bool> bloqueos = {};
       final Map<int, String> nombres = {};
       final Map<int, String?> fotos = {};
       final Map<int, MensajeChat?> ultimosMensajes = {};
       final Map<int, DateTime?> ultimasFechas = {};
 
-      for (final sala in salas) {
+      final salas = <SalaChat>[];
+
+      for (final item in data) {
+        if (item is! Map) continue;
+
+        final raw = Map<String, dynamic>.from(item);
+        final sala = SalaChat.fromJson(raw);
+
+        if (sala.id == 0) continue;
+
+        final soyUsuarioA = sala.usuarioAId == userId;
         final otroUsuarioId = sala.obtenerOtroUsuarioId(userId);
 
-        if (otroUsuarioId != 0) {
-          final existeBloqueo = await _apiService.existeBloqueoEntreUsuarios(
-            usuarioAId: userId,
-            usuarioBId: otroUsuarioId,
-          );
-          bloqueos[sala.id] = existeBloqueo;
+        salas.add(sala);
 
-          final otroUsuario = await _apiService.obtenerUsuarioPorId(
-            usuarioId: otroUsuarioId,
-            token: token,
-          );
-
-          if (otroUsuario != null && otroUsuario['nombre'] != null) {
-            String nombreMostrado = otroUsuario['nombre'].toString();
-
-            if (otroUsuario['apellido'] != null) {
-              nombreMostrado += ' ${otroUsuario['apellido']}';
-            }
-
-            nombres[otroUsuarioId] = nombreMostrado;
-          } else if (otroUsuario != null && otroUsuario['username'] != null) {
-            nombres[otroUsuarioId] = otroUsuario['username'].toString();
-          } else {
-            nombres[otroUsuarioId] = 'Usuario $otroUsuarioId';
-          }
-
-          if (otroUsuario != null && otroUsuario['profile'] != null) {
-            fotos[otroUsuarioId] = otroUsuario['profile']['fotoUrl'];
-          } else {
-            fotos[otroUsuarioId] = null;
-          }
-        } else {
-          bloqueos[sala.id] = false;
-          nombres[0] = 'Usuario desconocido';
-          fotos[0] = null;
-        }
-
-        final mensajesData = await _apiService.obtenerMensajes(
-          salaId: sala.id,
-          token: token,
+        bloqueos[sala.id] = _boolSeguro(raw['bloqueada']);
+        nombres[otroUsuarioId] = _nombreDesdeSalaRaw(raw, soyUsuarioA, otroUsuarioId);
+        fotos[otroUsuarioId] = _fotoSegura(
+          soyUsuarioA ? raw['usuarioBFotoUrl'] : raw['usuarioAFotoUrl'],
         );
 
-        final mensajes = mensajesData
-            .whereType<Map<String, dynamic>>()
-            .map(MensajeChat.fromJson)
-            .where((m) => m.id != 0)
-            .toList();
-
-        mensajes.sort(
-          (a, b) => _parseFecha(b.fechaEnvio).compareTo(_parseFecha(a.fechaEnvio)),
-        );
-
-        final ultimoMensaje = mensajes.isNotEmpty ? mensajes.first : null;
+        final ultimoMensaje = _ultimoMensajeDesdeRaw(raw);
         ultimosMensajes[sala.id] = ultimoMensaje;
 
-        ultimasFechas[sala.id] = ultimoMensaje != null
+        final fechaUltimoMensaje = ultimoMensaje != null
             ? _parseFecha(ultimoMensaje.fechaEnvio)
             : _parseFecha(sala.fechaCreacion);
+
+        ultimasFechas[sala.id] = fechaUltimoMensaje;
       }
 
       salas.sort((a, b) {
-        final fechaA =
-            ultimasFechas[a.id] ?? _parseFecha(a.fechaCreacion);
-        final fechaB =
-            ultimasFechas[b.id] ?? _parseFecha(b.fechaCreacion);
+        final fechaA = ultimasFechas[a.id] ?? _parseFecha(a.fechaCreacion);
+        final fechaB = ultimasFechas[b.id] ?? _parseFecha(b.fechaCreacion);
 
         return fechaB.compareTo(fechaA);
       });
@@ -218,10 +246,15 @@ class _ChatsViewState extends State<ChatsView> {
       if (!mounted) return;
 
       setState(() {
-        _error = e.toString();
+        _error = _limpiarError(e);
         _isLoading = false;
       });
     }
+  }
+
+  String _limpiarError(Object e) {
+    final texto = e.toString();
+    return texto.length <= 220 ? texto : '${texto.substring(0, 220)}...';
   }
 
   Widget _estadoVacio() {

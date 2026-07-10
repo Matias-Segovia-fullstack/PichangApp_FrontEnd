@@ -150,7 +150,7 @@ class ApiService {
     required int excludeId,
     required String token,
     double distanciaMinKm = 0,
-    double distanciaMaxKm = 1,
+    double distanciaMaxKm = 500,
     int edadMin = 18,
     int edadMax = 80,
     String sexo = 'Todos',
@@ -174,7 +174,7 @@ class ApiService {
             'Authorization': 'Bearer $token',
           },
         )
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List<dynamic>;
