@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../constants/deportes.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class EditProfileView extends StatefulWidget {
   final Map<String, dynamic> usuarioActual;
@@ -22,23 +24,44 @@ class _EditProfileViewState extends State<EditProfileView> {
   late TextEditingController _alturaController;
   late TextEditingController _descripcionController;
 
+  String? _sexoSeleccionado;
   String? _deporteSeleccionado;
   String? _posicionSeleccionada;
+
   bool _isLoading = false;
   bool _isChangingPassword = false;
-  String? _error;
 
-  final List<String> _deportes = ['BASKET', 'BOXEO'];
-
-  final Map<String, List<String>> _posicionesPorDeporte = {
-    'BASKET': ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot'],
-    'BOXEO': ['Ortodoxa', 'Zurda'],
-  };
+  final List<String> _sexos = [
+    'Masculino',
+    'Femenino',
+  ];
 
   @override
   void initState() {
     super.initState();
     _inicializarFormulario();
+  }
+
+  String? _normalizarSexoVista(dynamic sexo) {
+    final texto = sexo?.toString().trim().toUpperCase();
+
+    if (texto == 'MASCULINO' || texto == 'MASCULINO'.toLowerCase().toUpperCase()) {
+      return 'Masculino';
+    }
+
+    if (texto == 'FEMENINO' || texto == 'FEMENINO'.toLowerCase().toUpperCase()) {
+      return 'Femenino';
+    }
+
+    if (sexo?.toString() == 'Masculino') {
+      return 'Masculino';
+    }
+
+    if (sexo?.toString() == 'Femenino') {
+      return 'Femenino';
+    }
+
+    return null;
   }
 
   void _inicializarFormulario() {
@@ -50,18 +73,30 @@ class _EditProfileViewState extends State<EditProfileView> {
     _edadController = TextEditingController(
       text: profile is Map<String, dynamic> ? (profile['edad']?.toString() ?? '') : '',
     );
+
     _descripcionController = TextEditingController(
       text: profile is Map<String, dynamic> ? (profile['descripcion']?.toString() ?? '') : '',
     );
 
-    _deporteSeleccionado = profile is Map<String, dynamic>
-        ? profile['deportePrincipal']?.toString()
+    _sexoSeleccionado = profile is Map<String, dynamic>
+        ? _normalizarSexoVista(profile['sexo'])
         : null;
 
-    if (_deporteSeleccionado == 'BOXEO') {
+    _deporteSeleccionado = profile is Map<String, dynamic>
+        ? profile['deportePrincipal']?.toString().toUpperCase()
+        : null;
+
+    if (!AppDeportes.existe(_deporteSeleccionado)) {
+      _deporteSeleccionado = AppDeportes.deportePredeterminado;
+    } else {
+      _deporteSeleccionado = AppDeportes.normalizarCodigo(_deporteSeleccionado);
+    }
+
+    if (AppDeportes.usaPeso(_deporteSeleccionado)) {
       _alturaController = TextEditingController(
         text: atributos is Map<String, dynamic> ? (atributos['peso']?.toString() ?? '') : '',
       );
+
       _posicionSeleccionada = atributos is Map<String, dynamic>
           ? atributos['guardia']?.toString()
           : null;
@@ -69,9 +104,16 @@ class _EditProfileViewState extends State<EditProfileView> {
       _alturaController = TextEditingController(
         text: atributos is Map<String, dynamic> ? (atributos['altura']?.toString() ?? '') : '',
       );
+
       _posicionSeleccionada = atributos is Map<String, dynamic>
           ? atributos['posicion']?.toString()
           : null;
+    }
+
+    final posiciones = AppDeportes.posiciones(_deporteSeleccionado);
+
+    if (!posiciones.contains(_posicionSeleccionada)) {
+      _posicionSeleccionada = posiciones.isNotEmpty ? posiciones.first : null;
     }
   }
 
@@ -87,19 +129,24 @@ class _EditProfileViewState extends State<EditProfileView> {
     final edad = int.tryParse(_edadController.text.trim());
     final numeroDeportivo = int.tryParse(_alturaController.text.trim());
 
-    if (edad == null || edad <= 0) {
-      _mostrarError('Por favor ingresa una edad válida');
+    if (edad == null || edad < 18) {
+      _mostrarError('Debes ser mayor de edad para usar PichangApp');
       return;
     }
 
-    if (_deporteSeleccionado == null) {
+    if (_sexoSeleccionado == null || !_sexos.contains(_sexoSeleccionado)) {
+      _mostrarError('Por favor selecciona tu sexo');
+      return;
+    }
+
+    if (_deporteSeleccionado == null || !AppDeportes.existe(_deporteSeleccionado)) {
       _mostrarError('Por favor selecciona un deporte');
       return;
     }
 
     if (numeroDeportivo == null || numeroDeportivo <= 0) {
       _mostrarError(
-        _deporteSeleccionado == 'BOXEO'
+        AppDeportes.usaPeso(_deporteSeleccionado)
             ? 'Por favor ingresa un peso válido'
             : 'Por favor ingresa una altura válida',
       );
@@ -108,16 +155,13 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     if (_posicionSeleccionada == null) {
       _mostrarError(
-        _deporteSeleccionado == 'BOXEO'
-            ? 'Por favor selecciona una guardia'
-            : 'Por favor selecciona una posición',
+        AppDeportes.mensajePosicionInvalida(_deporteSeleccionado),
       );
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _error = null;
     });
 
     try {
@@ -130,7 +174,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
       Map<String, dynamic> atributosDeportivos;
 
-      if (_deporteSeleccionado == 'BOXEO') {
+      if (AppDeportes.usaPeso(_deporteSeleccionado)) {
         atributosDeportivos = {
           'peso': numeroDeportivo,
           'guardia': _posicionSeleccionada,
@@ -143,9 +187,10 @@ class _EditProfileViewState extends State<EditProfileView> {
       }
 
       final datosActualizacion = {
-        'edad': int.parse(_edadController.text),
+        'edad': edad,
+        'sexo': _sexoSeleccionado,
         'deportePrincipal': _deporteSeleccionado,
-        'descripcion': _descripcionController.text,
+        'descripcion': _descripcionController.text.trim(),
         'atributosDeportivos': atributosDeportivos,
       };
 
@@ -160,11 +205,12 @@ class _EditProfileViewState extends State<EditProfileView> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✓ Perfil actualizado correctamente'),
-            backgroundColor: Colors.green,
+            content: Text('Perfil actualizado correctamente'),
+            backgroundColor: AppTheme.success,
             duration: Duration(seconds: 2),
           ),
         );
+
         Navigator.pop(context, true);
       } else {
         _mostrarError('No se pudo actualizar el perfil');
@@ -181,6 +227,26 @@ class _EditProfileViewState extends State<EditProfileView> {
     }
   }
 
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppTheme.danger,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+
+  void _mostrarMensaje(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppTheme.success,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
   Future<void> _mostrarCambiarPasswordDialog() async {
     if (_isLoading || _isChangingPassword) return;
@@ -204,7 +270,8 @@ class _EditProfileViewState extends State<EditProfileView> {
             Future<void> guardarPassword() async {
               final passwordActual = passwordActualController.text.trim();
               final nuevaPassword = nuevaPasswordController.text.trim();
-              final confirmarNuevaPassword = confirmarNuevaPasswordController.text.trim();
+              final confirmarNuevaPassword =
+                  confirmarNuevaPasswordController.text.trim();
 
               if (passwordActual.isEmpty ||
                   nuevaPassword.isEmpty ||
@@ -257,7 +324,6 @@ class _EditProfileViewState extends State<EditProfileView> {
                   _mostrarMensaje(
                     resultado['mensaje']?.toString() ??
                         'Contraseña actualizada correctamente.',
-                    Colors.green,
                   );
                 } else {
                   _mostrarError(
@@ -284,7 +350,18 @@ class _EditProfileViewState extends State<EditProfileView> {
             }
 
             return AlertDialog(
-              title: const Text('Cambiar contraseña'),
+              backgroundColor: AppTheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+                side: const BorderSide(color: AppTheme.border),
+              ),
+              title: const Text(
+                'Cambiar contraseña',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -292,6 +369,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                     TextField(
                       controller: passwordActualController,
                       obscureText: !mostrarActual,
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Contraseña actual',
                         prefixIcon: const Icon(Icons.lock_outline),
@@ -304,7 +382,9 @@ class _EditProfileViewState extends State<EditProfileView> {
                                   });
                                 },
                           icon: Icon(
-                            mostrarActual ? Icons.visibility_off : Icons.visibility,
+                            mostrarActual
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                         ),
                       ),
@@ -313,6 +393,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                     TextField(
                       controller: nuevaPasswordController,
                       obscureText: !mostrarNueva,
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Nueva contraseña',
                         helperText: 'Mínimo 6 caracteres',
@@ -326,7 +407,9 @@ class _EditProfileViewState extends State<EditProfileView> {
                                   });
                                 },
                           icon: Icon(
-                            mostrarNueva ? Icons.visibility_off : Icons.visibility,
+                            mostrarNueva
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                         ),
                       ),
@@ -335,6 +418,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                     TextField(
                       controller: confirmarNuevaPasswordController,
                       obscureText: !mostrarConfirmacion,
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Confirmar nueva contraseña',
                         prefixIcon: const Icon(Icons.verified_user_outlined),
@@ -362,15 +446,12 @@ class _EditProfileViewState extends State<EditProfileView> {
                   onPressed: guardando ? null : () => Navigator.pop(dialogContext),
                   child: const Text('Cancelar'),
                 ),
-                FilledButton(
+                ElevatedButton(
                   onPressed: guardando ? null : guardarPassword,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                  ),
                   child: guardando
                       ? const SizedBox(
-                          width: 18,
                           height: 18,
+                          width: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: Colors.white,
@@ -390,22 +471,51 @@ class _EditProfileViewState extends State<EditProfileView> {
     confirmarNuevaPasswordController.dispose();
   }
 
-  void _mostrarMensaje(String mensaje, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: color,
-        duration: const Duration(seconds: 3),
+  Widget _buildSecuritySection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border),
       ),
-    );
-  }
-
-  void _mostrarError(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Seguridad de la cuenta',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Puedes cambiar tu contraseña validando primero la contraseña actual.',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: (_isLoading || _isChangingPassword)
+                  ? null
+                  : _mostrarCambiarPasswordDialog,
+              icon: _isChangingPassword
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.password),
+              label: const Text('Cambiar contraseña'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -426,8 +536,8 @@ class _EditProfileViewState extends State<EditProfileView> {
           label,
           style: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
@@ -435,24 +545,11 @@ class _EditProfileViewState extends State<EditProfileView> {
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          style: const TextStyle(color: AppTheme.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: Icon(icon, color: Colors.blue),
+            prefixIcon: Icon(icon),
             suffixText: suffix,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.blue, width: 2),
-            ),
-            filled: true,
-            fillColor: Colors.grey[50],
           ),
         ),
       ],
@@ -465,7 +562,10 @@ class _EditProfileViewState extends State<EditProfileView> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
     required IconData icon,
+    bool itemsSonDeportes = false,
   }) {
+    final String? safeValue = items.contains(value) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -473,32 +573,23 @@ class _EditProfileViewState extends State<EditProfileView> {
           label,
           style: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          value: safeValue,
+          dropdownColor: AppTheme.surfaceAlt,
+          style: const TextStyle(color: AppTheme.textPrimary),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: Colors.blue),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.blue, width: 2),
-            ),
-            filled: true,
-            fillColor: Colors.grey[50],
+            prefixIcon: Icon(icon),
           ),
           items: items.map((item) {
-            return DropdownMenuItem(value: item, child: Text(item));
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(itemsSonDeportes ? AppDeportes.nombre(item) : item),
+            );
           }).toList(),
           onChanged: onChanged,
           hint: const Text('Selecciona una opción'),
@@ -509,36 +600,30 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   @override
   Widget build(BuildContext context) {
+    final bool esBoxeo = AppDeportes.usaPeso(_deporteSeleccionado);
+
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.blue,
         title: const Text(
           'Editar Perfil',
           style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            color: AppTheme.textPrimary,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-              ),
+              child: CircularProgressIndicator(),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.all(22),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Descripción
                   _buildTextField(
                     controller: _descripcionController,
                     label: 'Descripción Deportiva',
@@ -546,9 +631,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                     icon: Icons.description_outlined,
                     maxLines: 4,
                   ),
-                  const SizedBox(height: 24),
-
-                  // Edad
+                  const SizedBox(height: 22),
                   _buildTextField(
                     controller: _edadController,
                     label: 'Edad',
@@ -557,143 +640,81 @@ class _EditProfileViewState extends State<EditProfileView> {
                     keyboardType: TextInputType.number,
                     suffix: 'años',
                   ),
-                  const SizedBox(height: 24),
-
-                  // Deporte Principal
+                  const SizedBox(height: 22),
+                  _buildDropdown(
+                    label: 'Sexo',
+                    value: _sexoSeleccionado,
+                    items: _sexos,
+                    onChanged: (valor) {
+                      setState(() {
+                        _sexoSeleccionado = valor;
+                      });
+                    },
+                    icon: Icons.person_search,
+                  ),
+                  const SizedBox(height: 22),
                   _buildDropdown(
                     label: 'Deporte Principal',
                     value: _deporteSeleccionado,
-                    items: _deportes,
+                    items: AppDeportes.codigos,
                     onChanged: (valor) {
+                      if (valor == null) return;
+
                       setState(() {
-                        _deporteSeleccionado = valor;
-                        _posicionSeleccionada = null;
+                        _deporteSeleccionado = AppDeportes.normalizarCodigo(valor);
+                        _posicionSeleccionada = AppDeportes.primeraPosicion(valor);
+                        _alturaController.text = AppDeportes
+                            .valorDefectoNumero(valor)
+                            .toString();
                       });
                     },
                     icon: Icons.sports_basketball_outlined,
+                    itemsSonDeportes: true,
                   ),
-                  const SizedBox(height: 24),
-
-                  // Altura/Peso
+                  const SizedBox(height: 22),
                   _buildTextField(
                     controller: _alturaController,
-                    label: _deporteSeleccionado == 'BOXEO' ? 'Peso' : 'Altura',
-                    hint: _deporteSeleccionado == 'BOXEO'
-                        ? 'Ingresa tu peso'
-                        : 'Ingresa tu altura',
-                    icon: _deporteSeleccionado == 'BOXEO'
-                        ? Icons.monitor_weight
-                        : Icons.height,
+                    label: esBoxeo ? 'Peso' : 'Altura',
+                    hint: esBoxeo ? 'Ingresa tu peso' : 'Ingresa tu altura',
+                    icon: esBoxeo ? Icons.monitor_weight : Icons.height,
                     keyboardType: TextInputType.number,
-                    suffix: _deporteSeleccionado == 'BOXEO' ? 'kg' : 'cm',
+                    suffix: esBoxeo ? 'kg' : 'cm',
                   ),
-                  const SizedBox(height: 24),
-
-                  // Posición/Guardia
+                  const SizedBox(height: 22),
                   if (_deporteSeleccionado != null)
                     _buildDropdown(
-                      label:
-                          _deporteSeleccionado == 'BOXEO' ? 'Guardia' : 'Posición',
+                      label: AppDeportes.etiquetaPosicion(_deporteSeleccionado),
                       value: _posicionSeleccionada,
-                      items: _posicionesPorDeporte[_deporteSeleccionado] ?? [],
+                      items: AppDeportes.posiciones(_deporteSeleccionado),
                       onChanged: (valor) {
                         setState(() {
                           _posicionSeleccionada = valor;
                         });
                       },
-                      icon: _deporteSeleccionado == 'BOXEO'
+                      icon: esBoxeo
                           ? Icons.sports_martial_arts_outlined
                           : Icons.sports_soccer_outlined,
                     ),
-
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.blue.withOpacity(0.18),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Seguridad de la cuenta',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Puedes cambiar tu contraseña validando primero la contraseña actual.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: (_isLoading || _isChangingPassword)
-                                ? null
-                                : _mostrarCambiarPasswordDialog,
-                            icon: _isChangingPassword
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.lock_reset),
-                            label: Text(
-                              _isChangingPassword
-                                  ? 'Cambiando contraseña...'
-                                  : 'Cambiar contraseña',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Botones
+                  const SizedBox(height: 24),
+                  _buildSecuritySection(),
+                  const SizedBox(height: 36),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(
-                              color: Colors.grey[300]!,
-                            ),
-                          ),
+                          onPressed: _isLoading ? null : () => Navigator.pop(context),
                           child: const Text('Cancelar'),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: FilledButton(
+                        child: ElevatedButton(
                           onPressed: _isLoading ? null : _guardarCambios,
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: Colors.blue,
-                          ),
                           child: const Text('Guardar Cambios'),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
                 ],
               ),
             ),

@@ -48,7 +48,7 @@ class PichangApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PichangApp',
+      title: 'MatchFit',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme(),
       home: FutureBuilder<bool>(

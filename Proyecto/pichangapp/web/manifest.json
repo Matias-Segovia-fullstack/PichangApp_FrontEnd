@@ -1,6 +1,6 @@
 {
-    "name": "pichangapp",
-    "short_name": "pichangapp",
+    "name": "MatchFit",
+    "short_name": "MatchFit",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
