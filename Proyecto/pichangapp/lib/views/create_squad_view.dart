@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../constants/deportes.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
@@ -20,7 +21,7 @@ class _CreateSquadViewState extends State<CreateSquadView> {
   final TextEditingController _descripcionController = TextEditingController();
 
   bool _isSaving = false;
-  String _deporte = 'BASKET';
+  String _deporte = AppDeportes.deportePredeterminado;
   int _maxIntegrantes = 5;
 
   @override
@@ -189,10 +190,12 @@ class _CreateSquadViewState extends State<CreateSquadView> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            items: const [
-              DropdownMenuItem(value: 'BASKET', child: Text('Basket')),
-              DropdownMenuItem(value: 'BOXEO', child: Text('Boxeo')),
-            ],
+            items: AppDeportes.deportes.map((deporte) {
+              return DropdownMenuItem<String>(
+                value: deporte.codigo,
+                child: Text(deporte.nombre),
+              );
+            }).toList(),
             onChanged: (value) {
               if (value == null) return;
 

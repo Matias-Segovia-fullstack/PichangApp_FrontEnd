@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/deportes.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import '../services/media_service.dart';
@@ -309,25 +310,7 @@ class _ProfileViewState extends State<ProfileView> {
   }) {
     final children = <Widget>[];
 
-    if (deporte.toUpperCase() == 'BASKET') {
-      children.addAll([
-        _infoCard(
-          titulo: 'Altura',
-          valor: '${_texto(atributos['altura'])} cm',
-          icon: Icons.height,
-          iconColor: Colors.cyan,
-        ),
-        if (atributos['posicion'] != null) ...[
-          _divider(),
-          _infoCard(
-            titulo: 'Posición',
-            valor: _texto(atributos['posicion']),
-            icon: Icons.sports_soccer_outlined,
-            iconColor: Colors.amber,
-          ),
-        ],
-      ]);
-    } else if (deporte.toUpperCase() == 'BOXEO') {
+    if (AppDeportes.usaPeso(deporte)) {
       children.addAll([
         _infoCard(
           titulo: 'Peso',
@@ -342,6 +325,24 @@ class _ProfileViewState extends State<ProfileView> {
             valor: _texto(atributos['guardia']),
             icon: Icons.sports_martial_arts_outlined,
             iconColor: Colors.deepOrange,
+          ),
+        ],
+      ]);
+    } else {
+      children.addAll([
+        _infoCard(
+          titulo: 'Altura',
+          valor: '${_texto(atributos['altura'])} cm',
+          icon: Icons.height,
+          iconColor: Colors.cyan,
+        ),
+        if (atributos['posicion'] != null) ...[
+          _divider(),
+          _infoCard(
+            titulo: 'Posición / especialidad',
+            valor: _texto(atributos['posicion']),
+            icon: Icons.sports_soccer_outlined,
+            iconColor: Colors.amber,
           ),
         ],
       ]);
@@ -539,7 +540,7 @@ class _ProfileViewState extends State<ProfileView> {
                 _divider(),
                 _infoCard(
                   titulo: 'Deporte Principal',
-                  valor: deporte?.toString() ?? 'No definido',
+                  valor: deporte != null ? AppDeportes.nombre(deporte.toString()) : 'No definido',
                   icon: Icons.sports_basketball_outlined,
                   iconColor: Colors.redAccent,
                 ),

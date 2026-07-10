@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/deportes.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../services/api_service.dart';
@@ -488,7 +489,9 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                 icon: Icons.sports_basketball,
                 iconColor: Colors.redAccent,
                 title: 'Deporte Principal',
-                value: deportePrincipal,
+                value: AppDeportes.existe(deportePrincipal)
+                    ? AppDeportes.nombre(deportePrincipal)
+                    : deportePrincipal,
               ),
               _infoTile(
                 icon: Icons.height,

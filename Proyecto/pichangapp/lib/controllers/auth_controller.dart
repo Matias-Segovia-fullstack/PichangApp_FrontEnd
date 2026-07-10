@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../constants/deportes.dart';
 import '../models/login_response.dart';
 import '../services/api_service.dart';
 
@@ -30,10 +31,10 @@ class AuthController {
       return false;
     }
 
-    final String deporte = deportePrincipal.trim().toUpperCase();
-    final bool esBoxeo = deporte == 'BOXEO';
+    final String deporte = AppDeportes.normalizarCodigo(deportePrincipal);
+    final bool usaPeso = AppDeportes.usaPeso(deporte);
 
-    final Map<String, dynamic> atributosDeportivos = esBoxeo
+    final Map<String, dynamic> atributosDeportivos = usaPeso
         ? {
             'peso': numeroDeportivo,
             'guardia': posicionOGuardia,
@@ -58,7 +59,7 @@ class AuthController {
         'edad': edad,
         'sexo': sexo.trim(),
         'fotoUrl': 'https://via.placeholder.com/150',
-        'deportePrincipal': esBoxeo ? 'BOXEO' : 'BASKET',
+        'deportePrincipal': deporte,
         'atributosDeportivos': atributosDeportivos,
       },
     };

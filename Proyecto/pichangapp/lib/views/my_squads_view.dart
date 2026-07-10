@@ -190,7 +190,7 @@ class _MySquadsViewState extends State<MySquadsView> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${squad.deporte} · ${squad.integrantesTexto}',
+                      '${squad.deporteTexto} · ${squad.integrantesTexto}',
                       style: const TextStyle(
                         color: AppTheme.textSecondary,
                         fontWeight: FontWeight.w700,

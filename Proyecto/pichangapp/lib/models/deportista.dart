@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../constants/deportes.dart';
 
 class Deportista {
   final int id;
@@ -121,6 +122,11 @@ class Deportista {
 
   static double _gradosARadianes(double grados) {
     return grados * pi / 180.0;
+  }
+
+
+  String get deportePrincipalTexto {
+    return AppDeportes.nombre(deportePrincipal);
   }
 
   String get nombreCompleto {

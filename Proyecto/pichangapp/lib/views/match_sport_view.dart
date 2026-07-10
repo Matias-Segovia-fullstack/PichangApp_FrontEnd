@@ -973,7 +973,7 @@ class _MatchSportViewState extends State<MatchSportView> {
                                 runSpacing: 8,
                                 children: [
                                   _infoChip(
-                                    deportista.deportePrincipal,
+                                    deportista.deportePrincipalTexto,
                                     Icons.sports_soccer,
                                   ),
                                   _infoChip(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/deportes.dart';
 import '../controllers/auth_controller.dart';
 
 class RegisterView extends StatefulWidget {
@@ -12,23 +13,22 @@ class _RegisterViewState extends State<RegisterView> {
   final AuthController _authController = AuthController();
 
   final TextEditingController _edadController = TextEditingController(text: '25');
-  final TextEditingController _numeroDeportivoController = TextEditingController(text: '180');
+  final TextEditingController _numeroDeportivoController = TextEditingController(
+    text: AppDeportes.valorDefectoNumero(AppDeportes.deportePredeterminado).toString(),
+  );
 
   bool _isLoading = false;
 
   String? _sexoSeleccionado;
-  String _deporteSeleccionado = 'BASKET';
-  String _posicionSeleccionada = 'Base';
+  String _deporteSeleccionado = AppDeportes.deportePredeterminado;
+  String _posicionSeleccionada = AppDeportes.primeraPosicion(
+    AppDeportes.deportePredeterminado,
+  );
 
   final List<String> _sexos = [
     'Masculino',
     'Femenino',
   ];
-
-  final Map<String, List<String>> _posicionesPorDeporte = {
-    'BASKET': ['Base', 'Escolta', 'Alero', 'Ala Pívot', 'Pívot'],
-    'BOXEO': ['Ortodoxa', 'Zurda'],
-  };
 
   @override
   void dispose() {
@@ -52,11 +52,22 @@ class _RegisterViewState extends State<RegisterView> {
       return;
     }
 
+    if (!AppDeportes.existe(_deporteSeleccionado)) {
+      _mostrarMensaje('Debes seleccionar un deporte.', Colors.red);
+      return;
+    }
+
     if (numeroDeportivo == null || numeroDeportivo <= 0) {
       _mostrarMensaje(
-        _deporteSeleccionado == 'BOXEO'
-            ? 'Ingresa un peso válido.'
-            : 'Ingresa una altura válida.',
+        AppDeportes.mensajeNumeroInvalido(_deporteSeleccionado),
+        Colors.red,
+      );
+      return;
+    }
+
+    if (_posicionSeleccionada.trim().isEmpty) {
+      _mostrarMensaje(
+        AppDeportes.mensajePosicionInvalida(_deporteSeleccionado),
         Colors.red,
       );
       return;
@@ -139,9 +150,12 @@ class _RegisterViewState extends State<RegisterView> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
     required IconData icon,
+    bool itemsSonDeportes = false,
   }) {
+    final safeValue = items.contains(value) ? value : null;
+
     return DropdownButtonFormField<String>(
-      value: value,
+      value: safeValue,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
@@ -150,7 +164,7 @@ class _RegisterViewState extends State<RegisterView> {
       items: items.map((item) {
         return DropdownMenuItem<String>(
           value: item,
-          child: Text(item),
+          child: Text(itemsSonDeportes ? AppDeportes.nombre(item) : item),
         );
       }).toList(),
       onChanged: onChanged,
@@ -160,16 +174,20 @@ class _RegisterViewState extends State<RegisterView> {
   void _cambiarDeporte(String? valor) {
     if (valor == null) return;
 
+    final deporte = AppDeportes.normalizarCodigo(valor);
+
     setState(() {
-      _deporteSeleccionado = valor;
-      _posicionSeleccionada = _posicionesPorDeporte[valor]!.first;
-      _numeroDeportivoController.text = valor == 'BOXEO' ? '75' : '180';
+      _deporteSeleccionado = deporte;
+      _posicionSeleccionada = AppDeportes.primeraPosicion(deporte);
+      _numeroDeportivoController.text = AppDeportes
+          .valorDefectoNumero(deporte)
+          .toString();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool esBoxeo = _deporteSeleccionado == 'BOXEO';
+    final bool usaPeso = AppDeportes.usaPeso(_deporteSeleccionado);
 
     return Scaffold(
       appBar: AppBar(
@@ -242,22 +260,23 @@ class _RegisterViewState extends State<RegisterView> {
                 _selector(
                   label: 'Deporte principal',
                   value: _deporteSeleccionado,
-                  items: const ['BASKET', 'BOXEO'],
+                  items: AppDeportes.codigos,
                   onChanged: _cambiarDeporte,
-                  icon: Icons.sports_basketball_outlined,
+                  icon: Icons.sports_basketball,
+                  itemsSonDeportes: true,
                 ),
                 const SizedBox(height: 16),
                 _campo(
                   controller: _numeroDeportivoController,
-                  label: esBoxeo ? 'Peso en kg' : 'Altura en cm',
-                  icon: esBoxeo ? Icons.monitor_weight : Icons.height,
+                  label: AppDeportes.etiquetaNumeroRegistro(_deporteSeleccionado),
+                  icon: usaPeso ? Icons.monitor_weight : Icons.height,
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
                 _selector(
-                  label: esBoxeo ? 'Guardia' : 'Posición',
+                  label: AppDeportes.etiquetaPosicion(_deporteSeleccionado),
                   value: _posicionSeleccionada,
-                  items: _posicionesPorDeporte[_deporteSeleccionado]!,
+                  items: AppDeportes.posiciones(_deporteSeleccionado),
                   onChanged: (valor) {
                     if (valor == null) return;
 
@@ -265,23 +284,20 @@ class _RegisterViewState extends State<RegisterView> {
                       _posicionSeleccionada = valor;
                     });
                   },
-                  icon: esBoxeo
+                  icon: usaPeso
                       ? Icons.sports_martial_arts_outlined
                       : Icons.sports_soccer_outlined,
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _registrar,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Registrarme'),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Crear cuenta'),
                 ),
               ],
             ),

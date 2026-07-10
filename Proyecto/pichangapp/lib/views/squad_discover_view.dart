@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../constants/deportes.dart';
 import '../models/squad.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -232,10 +233,17 @@ class _SquadDiscoverViewState extends State<SquadDiscoverView> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'Todos', child: Text('Todos')),
-                        DropdownMenuItem(value: 'BASKET', child: Text('Basket')),
-                        DropdownMenuItem(value: 'BOXEO', child: Text('Boxeo')),
+                      items: [
+                        const DropdownMenuItem(
+                          value: AppDeportes.todos,
+                          child: Text(AppDeportes.todos),
+                        ),
+                        ...AppDeportes.deportes.map((deporte) {
+                          return DropdownMenuItem<String>(
+                            value: deporte.codigo,
+                            child: Text(deporte.nombre),
+                          );
+                        }),
                       ],
                       onChanged: (value) {
                         if (value == null) return;
@@ -386,7 +394,7 @@ class _SquadDiscoverViewState extends State<SquadDiscoverView> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${squad.deporte} · ${squad.integrantesTexto}',
+                        '${AppDeportes.nombre(squad.deporte)} · ${squad.integrantesTexto}',
                         style: const TextStyle(
                           color: AppTheme.textSecondary,
                           fontWeight: FontWeight.w700,

@@ -795,7 +795,7 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
       color: AppTheme.primary.withOpacity(0.12),
       padding: const EdgeInsets.all(12),
       child: Text(
-        '${widget.squad.deporte} · ${widget.squad.integrantesTexto}',
+        '${widget.squad.deporteTexto} · ${widget.squad.integrantesTexto}',
         textAlign: TextAlign.center,
         style: const TextStyle(
           color: AppTheme.primarySoft,

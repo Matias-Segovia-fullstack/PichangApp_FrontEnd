@@ -1,3 +1,5 @@
+import '../constants/deportes.dart';
+
 class Squad {
   final int id;
   final int creadorId;
@@ -64,6 +66,10 @@ class Squad {
 
   String get integrantesTexto {
     return '$integrantesActuales/$maxIntegrantes integrantes';
+  }
+
+  String get deporteTexto {
+    return AppDeportes.nombre(deporte);
   }
 
   bool get estaCompleto {

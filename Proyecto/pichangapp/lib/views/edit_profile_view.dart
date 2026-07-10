@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../constants/deportes.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
@@ -33,16 +34,6 @@ class _EditProfileViewState extends State<EditProfileView> {
     'Masculino',
     'Femenino',
   ];
-
-  final List<String> _deportes = [
-    'BASKET',
-    'BOXEO',
-  ];
-
-  final Map<String, List<String>> _posicionesPorDeporte = {
-    'BASKET': ['Base', 'Escolta', 'Alero', 'Ala Pívot', 'Pívot'],
-    'BOXEO': ['Ortodoxa', 'Zurda'],
-  };
 
   @override
   void initState() {
@@ -94,11 +85,13 @@ class _EditProfileViewState extends State<EditProfileView> {
         ? profile['deportePrincipal']?.toString().toUpperCase()
         : null;
 
-    if (!_deportes.contains(_deporteSeleccionado)) {
-      _deporteSeleccionado = 'BASKET';
+    if (!AppDeportes.existe(_deporteSeleccionado)) {
+      _deporteSeleccionado = AppDeportes.deportePredeterminado;
+    } else {
+      _deporteSeleccionado = AppDeportes.normalizarCodigo(_deporteSeleccionado);
     }
 
-    if (_deporteSeleccionado == 'BOXEO') {
+    if (AppDeportes.usaPeso(_deporteSeleccionado)) {
       _alturaController = TextEditingController(
         text: atributos is Map<String, dynamic> ? (atributos['peso']?.toString() ?? '') : '',
       );
@@ -116,7 +109,7 @@ class _EditProfileViewState extends State<EditProfileView> {
           : null;
     }
 
-    final posiciones = _posicionesPorDeporte[_deporteSeleccionado] ?? [];
+    final posiciones = AppDeportes.posiciones(_deporteSeleccionado);
 
     if (!posiciones.contains(_posicionSeleccionada)) {
       _posicionSeleccionada = posiciones.isNotEmpty ? posiciones.first : null;
@@ -145,14 +138,14 @@ class _EditProfileViewState extends State<EditProfileView> {
       return;
     }
 
-    if (_deporteSeleccionado == null || !_deportes.contains(_deporteSeleccionado)) {
+    if (_deporteSeleccionado == null || !AppDeportes.existe(_deporteSeleccionado)) {
       _mostrarError('Por favor selecciona un deporte');
       return;
     }
 
     if (numeroDeportivo == null || numeroDeportivo <= 0) {
       _mostrarError(
-        _deporteSeleccionado == 'BOXEO'
+        AppDeportes.usaPeso(_deporteSeleccionado)
             ? 'Por favor ingresa un peso válido'
             : 'Por favor ingresa una altura válida',
       );
@@ -161,9 +154,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     if (_posicionSeleccionada == null) {
       _mostrarError(
-        _deporteSeleccionado == 'BOXEO'
-            ? 'Por favor selecciona una guardia'
-            : 'Por favor selecciona una posición',
+        AppDeportes.mensajePosicionInvalida(_deporteSeleccionado),
       );
       return;
     }
@@ -182,7 +173,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
       Map<String, dynamic> atributosDeportivos;
 
-      if (_deporteSeleccionado == 'BOXEO') {
+      if (AppDeportes.usaPeso(_deporteSeleccionado)) {
         atributosDeportivos = {
           'peso': numeroDeportivo,
           'guardia': _posicionSeleccionada,
@@ -287,6 +278,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
     required IconData icon,
+    bool itemsSonDeportes = false,
   }) {
     final String? safeValue = items.contains(value) ? value : null;
 
@@ -312,7 +304,7 @@ class _EditProfileViewState extends State<EditProfileView> {
           items: items.map((item) {
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(item),
+              child: Text(itemsSonDeportes ? AppDeportes.nombre(item) : item),
             );
           }).toList(),
           onChanged: onChanged,
@@ -324,7 +316,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   @override
   Widget build(BuildContext context) {
-    final bool esBoxeo = _deporteSeleccionado == 'BOXEO';
+    final bool esBoxeo = AppDeportes.usaPeso(_deporteSeleccionado);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -380,17 +372,20 @@ class _EditProfileViewState extends State<EditProfileView> {
                   _buildDropdown(
                     label: 'Deporte Principal',
                     value: _deporteSeleccionado,
-                    items: _deportes,
+                    items: AppDeportes.codigos,
                     onChanged: (valor) {
                       if (valor == null) return;
 
                       setState(() {
-                        _deporteSeleccionado = valor;
-                        _posicionSeleccionada = _posicionesPorDeporte[valor]?.first;
-                        _alturaController.text = valor == 'BOXEO' ? '75' : '180';
+                        _deporteSeleccionado = AppDeportes.normalizarCodigo(valor);
+                        _posicionSeleccionada = AppDeportes.primeraPosicion(valor);
+                        _alturaController.text = AppDeportes
+                            .valorDefectoNumero(valor)
+                            .toString();
                       });
                     },
                     icon: Icons.sports_basketball_outlined,
+                    itemsSonDeportes: true,
                   ),
                   const SizedBox(height: 22),
                   _buildTextField(
@@ -404,9 +399,9 @@ class _EditProfileViewState extends State<EditProfileView> {
                   const SizedBox(height: 22),
                   if (_deporteSeleccionado != null)
                     _buildDropdown(
-                      label: esBoxeo ? 'Guardia' : 'Posición',
+                      label: AppDeportes.etiquetaPosicion(_deporteSeleccionado),
                       value: _posicionSeleccionada,
-                      items: _posicionesPorDeporte[_deporteSeleccionado] ?? [],
+                      items: AppDeportes.posiciones(_deporteSeleccionado),
                       onChanged: (valor) {
                         setState(() {
                           _posicionSeleccionada = valor;
