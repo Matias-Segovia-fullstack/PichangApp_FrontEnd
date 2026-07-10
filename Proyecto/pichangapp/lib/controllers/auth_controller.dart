@@ -21,6 +21,7 @@ class AuthController {
     required String deportePrincipal,
     required int numeroDeportivo,
     required String posicionOGuardia,
+    String? fotoUrl,
   }) async {
     if (emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
@@ -48,6 +49,8 @@ class AuthController {
         ? 'Jugador amateur de PichangApp'
         : rutController.text.trim();
 
+    final fotoPerfil = fotoUrl?.trim();
+
     final Map<String, dynamic> userData = {
       'nombre': nameController.text.trim(),
       'apellido': apellidoController.text.trim(),
@@ -58,7 +61,9 @@ class AuthController {
         'descripcion': descripcion,
         'edad': edad,
         'sexo': sexo.trim(),
-        'fotoUrl': 'https://via.placeholder.com/150',
+        'fotoUrl': fotoPerfil != null && fotoPerfil.isNotEmpty
+            ? fotoPerfil
+            : 'https://via.placeholder.com/150',
         'deportePrincipal': deporte,
         'atributosDeportivos': atributosDeportivos,
       },

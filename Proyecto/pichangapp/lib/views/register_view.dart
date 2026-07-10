@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/deportes.dart';
 import '../controllers/auth_controller.dart';
+import '../services/media_service.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -11,6 +12,7 @@ class RegisterView extends StatefulWidget {
 
 class _RegisterViewState extends State<RegisterView> {
   final AuthController _authController = AuthController();
+  final MediaService _mediaService = MediaService();
 
   final TextEditingController _edadController = TextEditingController(text: '25');
   final TextEditingController _numeroDeportivoController = TextEditingController(
@@ -18,7 +20,9 @@ class _RegisterViewState extends State<RegisterView> {
   );
 
   bool _isLoading = false;
+  bool _isUploadingPhoto = false;
 
+  String? _fotoPerfilUrl;
   String? _sexoSeleccionado;
   String _deporteSeleccionado = AppDeportes.deportePredeterminado;
   String _posicionSeleccionada = AppDeportes.primeraPosicion(
@@ -38,7 +42,51 @@ class _RegisterViewState extends State<RegisterView> {
     super.dispose();
   }
 
+  Future<void> _seleccionarFotoPerfil() async {
+    if (_isLoading || _isUploadingPhoto) return;
+
+    setState(() {
+      _isUploadingPhoto = true;
+    });
+
+    try {
+      final url = await _mediaService.pickCompressAndUploadImage(
+        bucket: 'user-media',
+        folder: 'registro_perfiles',
+      );
+
+      if (!mounted) return;
+
+      if (url == null || url.isEmpty) {
+        setState(() {
+          _isUploadingPhoto = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _fotoPerfilUrl = url;
+        _isUploadingPhoto = false;
+      });
+
+      _mostrarMensaje('Foto de perfil agregada.', Colors.green);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isUploadingPhoto = false;
+      });
+
+      _mostrarMensaje('Error al subir foto: $e', Colors.red);
+    }
+  }
+
   Future<void> _registrar() async {
+    if (_isUploadingPhoto) {
+      _mostrarMensaje('Espera a que termine de subir la foto.', Colors.orange);
+      return;
+    }
+
     final int? edad = int.tryParse(_edadController.text.trim());
     final int? numeroDeportivo = int.tryParse(_numeroDeportivoController.text.trim());
 
@@ -84,6 +132,7 @@ class _RegisterViewState extends State<RegisterView> {
         deportePrincipal: _deporteSeleccionado,
         numeroDeportivo: numeroDeportivo,
         posicionOGuardia: _posicionSeleccionada,
+        fotoUrl: _fotoPerfilUrl,
       );
 
       if (!mounted) return;
@@ -171,6 +220,56 @@ class _RegisterViewState extends State<RegisterView> {
     );
   }
 
+  Widget _selectorFotoPerfil() {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 54,
+          backgroundColor: Colors.blue.withOpacity(0.14),
+          backgroundImage: _fotoPerfilUrl != null
+              ? NetworkImage(_fotoPerfilUrl!)
+              : null,
+          child: _fotoPerfilUrl == null
+              ? const Icon(
+                  Icons.person,
+                  size: 54,
+                  color: Colors.blue,
+                )
+              : null,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: (_isLoading || _isUploadingPhoto) ? null : _seleccionarFotoPerfil,
+          icon: _isUploadingPhoto
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.camera_alt),
+          label: Text(
+            _isUploadingPhoto
+                ? 'Subiendo foto...'
+                : _fotoPerfilUrl == null
+                    ? 'Agregar foto de perfil'
+                    : 'Cambiar foto de perfil',
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _fotoPerfilUrl == null
+              ? 'Puedes crear tu cuenta sin foto y agregarla después.'
+              : 'La foto quedará guardada al crear tu cuenta.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _cambiarDeporte(String? valor) {
     if (valor == null) return;
 
@@ -200,6 +299,8 @@ class _RegisterViewState extends State<RegisterView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _selectorFotoPerfil(),
+                const SizedBox(height: 24),
                 _campo(
                   controller: _authController.nameController,
                   label: 'Nombre',
@@ -290,7 +391,7 @@ class _RegisterViewState extends State<RegisterView> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _registrar,
+                  onPressed: (_isLoading || _isUploadingPhoto) ? null : _registrar,
                   child: _isLoading
                       ? const SizedBox(
                           height: 20,
