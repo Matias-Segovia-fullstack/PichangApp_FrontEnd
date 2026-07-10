@@ -946,7 +946,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       color: AppTheme.primary.withOpacity(0.12),
       padding: const EdgeInsets.all(12),
       child: Text(
-        'MatchSocial ${widget.sala.matchSocialId} · Chat habilitado por match',
+        'Chat habilitado por match',
         textAlign: TextAlign.center,
         style: const TextStyle(
           color: AppTheme.primarySoft,
