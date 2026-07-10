@@ -1068,4 +1068,77 @@ class ApiService {
       return false;
     }
   }
+
+  Future<Map<String, dynamic>> cambiarPasswordUsuario({
+    required String token,
+    required dynamic userId,
+    required String passwordActual,
+    required String nuevaPassword,
+    required String confirmarNuevaPassword,
+  }) async {
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$usuarioBaseUrl/api/users/$userId/password'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'passwordActual': passwordActual,
+              'nuevaPassword': nuevaPassword,
+              'confirmarNuevaPassword': confirmarNuevaPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        String mensaje = 'Contraseña actualizada correctamente';
+
+        try {
+          final data = jsonDecode(response.body);
+
+          if (data is Map<String, dynamic>) {
+            mensaje = data['mensaje']?.toString() ?? mensaje;
+          }
+        } catch (_) {}
+
+        return {
+          'ok': true,
+          'mensaje': mensaje,
+        };
+      }
+
+      String mensaje = 'No se pudo cambiar la contraseña.';
+
+      try {
+        final data = jsonDecode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          mensaje = data['error']?.toString() ??
+              data['mensaje']?.toString() ??
+              data['message']?.toString() ??
+              mensaje;
+        }
+      } catch (_) {
+        mensaje = 'Error ${response.statusCode} al cambiar la contraseña.';
+      }
+
+      debugPrint('Error cambiar contraseña: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+
+      return {
+        'ok': false,
+        'mensaje': mensaje,
+      };
+    } catch (e) {
+      debugPrint('Error cliente cambiar contraseña: $e');
+
+      return {
+        'ok': false,
+        'mensaje': 'Error de conexión al cambiar la contraseña.',
+      };
+    }
+  }
+
 }
