@@ -1012,4 +1012,60 @@ class ApiService {
       return false;
     }
   }
+
+    Future<List<dynamic>> listarMiembrosSquad({
+    required int squadId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$comunicacionBaseUrl/api/v1/squads/$squadId/miembros'),
+            headers: await _squadAuthHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('MIEMBROS SQUAD STATUS: ${response.statusCode}');
+      debugPrint('MIEMBROS SQUAD RESPONSE: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente listar miembros squad: $e');
+      return [];
+    }
+  }
+
+  Future<bool> expulsarMiembroSquad({
+    required int squadId,
+    required int adminId,
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http
+          .delete(
+            Uri.parse(
+              '$comunicacionBaseUrl/api/v1/squads/$squadId/miembros/$usuarioId?adminId=$adminId',
+            ),
+            headers: await _squadAuthHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('EXPULSAR MIEMBRO SQUAD STATUS: ${response.statusCode}');
+      debugPrint('EXPULSAR MIEMBRO SQUAD RESPONSE: ${response.body}');
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error cliente expulsar miembro squad: $e');
+      return false;
+    }
+  }
 }

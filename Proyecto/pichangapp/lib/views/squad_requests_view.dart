@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/solicitud_squad.dart';
 import '../models/squad.dart';
@@ -21,16 +22,82 @@ class SquadRequestsView extends StatefulWidget {
 
 class _SquadRequestsViewState extends State<SquadRequestsView> {
   final ApiService _apiService = ApiService();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   bool _isLoading = true;
   bool _isActionLoading = false;
   String? _error;
   List<SolicitudSquad> _solicitudes = [];
 
+  final Map<int, String> _nombresUsuarios = {};
+
   @override
   void initState() {
     super.initState();
     _cargarSolicitudes();
+  }
+
+  String _nombreVisibleUsuario(int usuarioId) {
+    return _nombresUsuarios[usuarioId] ?? 'Usuario #$usuarioId';
+  }
+
+  String _resolverNombreUsuario(Map<String, dynamic>? data, int usuarioId) {
+    if (data == null) {
+      return 'Usuario #$usuarioId';
+    }
+
+    final username = data['username']?.toString().trim() ??
+        data['nombreUsuario']?.toString().trim() ??
+        data['userName']?.toString().trim();
+
+    if (username != null && username.isNotEmpty) {
+      return username.startsWith('@') ? username : '@$username';
+    }
+
+    final nombre = data['nombre']?.toString().trim() ?? '';
+    final apellido = data['apellido']?.toString().trim() ?? '';
+    final nombreCompleto = '$nombre $apellido'.trim();
+
+    if (nombreCompleto.isNotEmpty) {
+      return nombreCompleto;
+    }
+
+    return 'Usuario #$usuarioId';
+  }
+
+  Future<void> _cargarNombreUsuario(int usuarioId) async {
+    if (_nombresUsuarios.containsKey(usuarioId)) return;
+
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+
+      if (token == null || token.isEmpty) {
+        return;
+      }
+
+      final data = await _apiService.obtenerUsuarioPorId(
+        usuarioId: usuarioId,
+        token: token,
+      );
+
+      final nombre = _resolverNombreUsuario(data, usuarioId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _nombresUsuarios[usuarioId] = nombre;
+      });
+    } catch (e) {
+      debugPrint('No se pudo cargar nombre de usuario $usuarioId: $e');
+    }
+  }
+
+  Future<void> _cargarNombresUsuarios(Iterable<int> usuariosIds) async {
+    final idsUnicos = usuariosIds.toSet();
+
+    for (final usuarioId in idsUnicos) {
+      await _cargarNombreUsuario(usuarioId);
+    }
   }
 
   Future<void> _cargarSolicitudes() async {
@@ -49,6 +116,10 @@ class _SquadRequestsViewState extends State<SquadRequestsView> {
           .whereType<Map<String, dynamic>>()
           .map(SolicitudSquad.fromJson)
           .toList();
+
+      await _cargarNombresUsuarios(
+        solicitudes.map((solicitud) => solicitud.usuarioId),
+      );
 
       if (!mounted) return;
 
@@ -86,8 +157,10 @@ class _SquadRequestsViewState extends State<SquadRequestsView> {
 
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Solicitud aceptada. Usuario agregado al squad.'),
+        SnackBar(
+          content: Text(
+            '${_nombreVisibleUsuario(solicitud.usuarioId)} fue agregado al squad.',
+          ),
         ),
       );
 
@@ -121,8 +194,10 @@ class _SquadRequestsViewState extends State<SquadRequestsView> {
 
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Solicitud rechazada.'),
+        SnackBar(
+          content: Text(
+            'Solicitud de ${_nombreVisibleUsuario(solicitud.usuarioId)} rechazada.',
+          ),
         ),
       );
 
@@ -171,6 +246,8 @@ class _SquadRequestsViewState extends State<SquadRequestsView> {
   }
 
   Widget _solicitudCard(SolicitudSquad solicitud) {
+    final nombre = _nombreVisibleUsuario(solicitud.usuarioId);
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       decoration: BoxDecoration(
@@ -183,7 +260,7 @@ class _SquadRequestsViewState extends State<SquadRequestsView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Usuario #${solicitud.usuarioId}',
+            nombre,
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontSize: 18,
@@ -191,9 +268,9 @@ class _SquadRequestsViewState extends State<SquadRequestsView> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Quiere entrar a tu squad.',
-            style: TextStyle(
+          Text(
+            'Usuario #${solicitud.usuarioId} quiere entrar a tu squad.',
+            style: const TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 14,
             ),

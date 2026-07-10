@@ -6,6 +6,7 @@ import '../models/sala_chat.dart';
 import '../services/api_service.dart';
 import '../services/media_service.dart';
 import '../theme/app_theme.dart';
+import 'public_user_profile_view.dart';
 
 class ChatDetailView extends StatefulWidget {
   final SalaChat sala;
@@ -73,6 +74,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     _realtimeChannel?.unsubscribe();
     _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _abrirPerfilUsuario(int usuarioId) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicUserProfileView(
+          usuarioId: usuarioId,
+        ),
+      ),
+    );
   }
 
   Future<void> _inicializarChat() async {
@@ -988,6 +1000,63 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     );
   }
 
+  Widget _avatarOtroUsuario() {
+    return InkWell(
+      onTap: () => _abrirPerfilUsuario(otroUsuarioId),
+      borderRadius: BorderRadius.circular(999),
+      child: CircleAvatar(
+        radius: 18,
+        backgroundColor: _usuarioBloqueado
+            ? AppTheme.danger.withOpacity(0.16)
+            : AppTheme.primarySoft.withOpacity(0.18),
+        backgroundImage: (!_usuarioBloqueado &&
+                widget.otroUsuarioFoto != null &&
+                widget.otroUsuarioFoto!.isNotEmpty)
+            ? NetworkImage(widget.otroUsuarioFoto!)
+            : null,
+        child: (!_usuarioBloqueado &&
+                widget.otroUsuarioFoto != null &&
+                widget.otroUsuarioFoto!.isNotEmpty)
+            ? null
+            : Icon(
+                _usuarioBloqueado ? Icons.block : Icons.person,
+                size: 20,
+                color: _usuarioBloqueado
+                    ? AppTheme.danger
+                    : AppTheme.primarySoft,
+              ),
+      ),
+    );
+  }
+
+  Widget _tituloOtroUsuario() {
+    return InkWell(
+      onTap: () => _abrirPerfilUsuario(otroUsuarioId),
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            _textoEstadoAppBar(),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -998,51 +1067,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         elevation: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: _usuarioBloqueado
-                  ? AppTheme.danger.withOpacity(0.16)
-                  : AppTheme.primarySoft.withOpacity(0.18),
-              backgroundImage: (!_usuarioBloqueado &&
-                      widget.otroUsuarioFoto != null &&
-                      widget.otroUsuarioFoto!.isNotEmpty)
-                  ? NetworkImage(widget.otroUsuarioFoto!)
-                  : null,
-              child: (!_usuarioBloqueado &&
-                      widget.otroUsuarioFoto != null &&
-                      widget.otroUsuarioFoto!.isNotEmpty)
-                  ? null
-                  : Icon(
-                      _usuarioBloqueado ? Icons.block : Icons.person,
-                      size: 20,
-                      color: _usuarioBloqueado
-                          ? AppTheme.danger
-                          : AppTheme.primarySoft,
-                    ),
-            ),
+            _avatarOtroUsuario(),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.otroUsuarioNombre ?? 'Usuario $otroUsuarioId',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    _textoEstadoAppBar(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+              child: _tituloOtroUsuario(),
             ),
           ],
         ),
