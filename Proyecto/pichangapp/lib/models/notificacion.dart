@@ -29,6 +29,11 @@ class Notificacion {
     );
   }
 
-  bool get esMatch => tipo.toUpperCase() == 'MATCH';
-  bool get esMensaje => tipo.toUpperCase() == 'MENSAJE';
+  String get tipoNormalizado => tipo.toUpperCase().trim();
+
+  bool get esMatch => tipoNormalizado == 'MATCH';
+  bool get esMensaje => tipoNormalizado == 'MENSAJE';
+  bool get esSquadSolicitud => tipoNormalizado == 'SQUAD_SOLICITUD';
+  bool get esSquadAceptada => tipoNormalizado == 'SQUAD_ACEPTADA';
+  bool get esSquad => esSquadSolicitud || esSquadAceptada;
 }

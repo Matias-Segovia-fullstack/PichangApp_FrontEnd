@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/notificacion.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import 'my_squads_view.dart';
 
 class NotificationsView extends StatefulWidget {
   final VoidCallback? onNotificationsChanged;
@@ -158,6 +159,19 @@ class _NotificationsViewState extends State<NotificationsView> {
           style: const TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
+          if (notificacion.esSquadAceptada)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MySquadsView(),
+                  ),
+                );
+              },
+              child: const Text('Ver mis squads'),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cerrar'),
@@ -172,6 +186,14 @@ class _NotificationsViewState extends State<NotificationsView> {
       return Icons.sports_score;
     }
 
+    if (notificacion.esSquadSolicitud) {
+      return Icons.group_add;
+    }
+
+    if (notificacion.esSquadAceptada) {
+      return Icons.groups_2;
+    }
+
     if (notificacion.esMensaje) {
       return Icons.chat_bubble;
     }
@@ -182,6 +204,14 @@ class _NotificationsViewState extends State<NotificationsView> {
   Color _color(Notificacion notificacion) {
     if (notificacion.esMatch) {
       return Colors.orange;
+    }
+
+    if (notificacion.esSquadSolicitud) {
+      return Colors.lightBlueAccent;
+    }
+
+    if (notificacion.esSquadAceptada) {
+      return AppTheme.success;
     }
 
     if (notificacion.esMensaje) {
@@ -215,7 +245,7 @@ class _NotificationsViewState extends State<NotificationsView> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Cuando tengas un match o recibas mensajes, aparecerán aquí.',
+            'Cuando tengas un match deportivo o novedades de squads, aparecerán aquí.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppTheme.textSecondary),
           ),

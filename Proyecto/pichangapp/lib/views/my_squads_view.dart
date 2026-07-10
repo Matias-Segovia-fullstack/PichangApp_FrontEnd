@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -19,21 +20,51 @@ class _MySquadsViewState extends State<MySquadsView> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   bool _isLoading = true;
+  bool _actualizandoSilencioso = false;
   String? _error;
   int? _miUsuarioId;
   List<Squad> _squads = [];
+
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _cargarMisSquads();
+    _iniciarActualizacionAutomatica();
   }
 
-  Future<void> _cargarMisSquads() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _iniciarActualizacionAutomatica() {
+    _refreshTimer?.cancel();
+
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) {
+        if (!mounted) return;
+        _cargarMisSquads(silencioso: true);
+      },
+    );
+  }
+
+  Future<void> _cargarMisSquads({bool silencioso = false}) async {
+    if (_actualizandoSilencioso && silencioso) return;
+
+    if (silencioso) {
+      _actualizandoSilencioso = true;
+    }
+
+    if (!silencioso && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final userIdString = await _storage.read(key: 'user_id');
@@ -58,14 +89,24 @@ class _MySquadsViewState extends State<MySquadsView> {
         _miUsuarioId = userId;
         _squads = squads;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
+
+      if (silencioso) {
+        debugPrint('No se pudo actualizar Mis Squads en segundo plano: $e');
+        return;
+      }
 
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
+    } finally {
+      if (silencioso) {
+        _actualizandoSilencioso = false;
+      }
     }
   }
 
