@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../models/login_response.dart';
 
 class ApiService {
   // Cambiar a '168.129.178.109' para la nube, o '127.0.0.1' / '10.0.2.2' para local
   static const String _serverIp = '168.129.178.109';
+
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   static String get usuarioBaseUrl {
     return 'http://$_serverIp:8001';
@@ -31,9 +34,17 @@ class ApiService {
   }
 
   static String get notificacionBaseUrl {
-  return 'http://$_serverIp:8083';
-}
+    return 'http://$_serverIp:8083';
+  }
 
+  Future<Map<String, String>> _squadAuthHeaders() async {
+    final token = await _secureStorage.read(key: 'jwt_token');
+
+    return {
+      'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
 
   Future<bool> registrarUsuario(Map<String, dynamic> userData) async {
     try {
@@ -397,34 +408,34 @@ class ApiService {
   }
 
   Future<bool> actualizarPerfilUsuario({
-  required String token,
-  required dynamic userId,
-  required Map<String, dynamic> datosActualizacion,
-}) async {
-  try {
-    final response = await http
-        .put(
-          Uri.parse('$usuarioBaseUrl/api/users/$userId/profile'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode(datosActualizacion),
-        )
-        .timeout(const Duration(seconds: 10));
+    required String token,
+    required dynamic userId,
+    required Map<String, dynamic> datosActualizacion,
+  }) async {
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$usuarioBaseUrl/api/users/$userId/profile'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(datosActualizacion),
+          )
+          .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 200 || response.statusCode == 204) {
-      return true;
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return true;
+      }
+
+      debugPrint('Error actualizar perfil: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente actualizar perfil: $e');
+      return false;
     }
-
-    debugPrint('Error actualizar perfil: ${response.statusCode}');
-    debugPrint('Respuesta backend: ${response.body}');
-    return false;
-  } catch (e) {
-    debugPrint('Error cliente actualizar perfil: $e');
-    return false;
   }
-}
 
   Future<bool> existeBloqueoEntreUsuarios({
     required int usuarioAId,
@@ -455,199 +466,199 @@ class ApiService {
   }
 
   Future<bool?> tokenSigueVigente(String token) async {
-  try {
-    final response = await http
-        .get(
-          Uri.parse('$usuarioBaseUrl/api/users/me'),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        )
-        .timeout(const Duration(seconds: 8));
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$usuarioBaseUrl/api/users/me'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 8));
 
-    if (response.statusCode == 200) {
-      return true;
-    }
-
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      return false;
-    }
-
-    return null;
-  } catch (e) {
-    debugPrint('No se pudo validar token: $e');
-    return null;
-  }
-}
-
-Future<List<dynamic>> obtenerNotificacionesUsuario({
-  required int usuarioId,
-}) async {
-  try {
-    final response = await http
-        .get(
-          Uri.parse('$notificacionBaseUrl/api/notificaciones/user/$usuarioId'),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 10));
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-
-      if (data is List) {
-        return data;
-      }
-
-      return [];
-    }
-
-    debugPrint('Error obtener notificaciones: ${response.statusCode}');
-    debugPrint('Respuesta backend: ${response.body}');
-    return [];
-  } catch (e) {
-    debugPrint('Error cliente obtener notificaciones: $e');
-    return [];
-  }
-}
-
-Future<bool> marcarNotificacionComoLeida({
-  required int notificacionId,
-}) async {
-  try {
-    final response = await http
-        .put(
-          Uri.parse('$notificacionBaseUrl/api/notificaciones/$notificacionId/leida'),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 10));
-
-    return response.statusCode == 200 || response.statusCode == 204;
-  } catch (e) {
-    debugPrint('Error cliente marcar notificación como leída: $e');
-    return false;
-  }
-}
-
-bool _valorLeidaComoBool(dynamic valor) {
-  if (valor is bool) {
-    return valor;
-  }
-
-  if (valor is String) {
-    return valor.toLowerCase() == 'true';
-  }
-
-  if (valor is int) {
-    return valor == 1;
-  }
-
-  return false;
-}
-
-Future<int> marcarNotificacionesMensajeComoLeidas({
-  required int usuarioId,
-}) async {
-  try {
-    final data = await obtenerNotificacionesUsuario(
-      usuarioId: usuarioId,
-    );
-
-    int totalMarcadas = 0;
-
-    for (final item in data) {
-      if (item is! Map) continue;
-
-      final id = int.tryParse(item['id']?.toString() ?? '');
-      final tipo = item['tipo']?.toString().toUpperCase().trim() ?? '';
-      final leida = _valorLeidaComoBool(item['leida']);
-
-      if (id == null) continue;
-
-      if (tipo == 'MENSAJE' && !leida) {
-        final ok = await marcarNotificacionComoLeida(
-          notificacionId: id,
-        );
-
-        if (ok) {
-          totalMarcadas++;
-        }
-      }
-    }
-
-    if (totalMarcadas > 0) {
-      debugPrint(
-        'Notificaciones de mensaje marcadas como leídas: $totalMarcadas',
-      );
-    }
-
-    return totalMarcadas;
-  } catch (e) {
-    debugPrint('Error marcando notificaciones de mensaje como leídas: $e');
-    return 0;
-  }
-}
-
-Future<List<dynamic>> listarBloqueosPorUsuario({
-  required int usuarioId,
-}) async {
-  try {
-    final response = await http
-        .get(
-          Uri.parse('$seguridadBaseUrl/api/safety/bloqueos/user/$usuarioId'),
-          headers: {'Content-Type': 'application/json'},
-        )
-        .timeout(const Duration(seconds: 10));
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-
-      if (data is List) {
-        return data;
-      }
-
-      return [];
-    }
-
-    debugPrint('Error listar bloqueos por usuario: ${response.statusCode}');
-    debugPrint('Respuesta backend: ${response.body}');
-    return [];
-  } catch (e) {
-    debugPrint('Error cliente listar bloqueos por usuario: $e');
-    return [];
-  }
-}
-
-Future<bool> usuarioBloqueoA({
-  required int usuarioOrigenId,
-  required int usuarioBloqueadoId,
-}) async {
-  try {
-    final bloqueos = await listarBloqueosPorUsuario(
-      usuarioId: usuarioOrigenId,
-    );
-
-    for (final item in bloqueos) {
-      if (item is! Map) continue;
-
-      final idBloqueado = int.tryParse(
-        item['idUsuarioBloqueado']?.toString() ?? '',
-      );
-
-      if (idBloqueado == usuarioBloqueadoId) {
+      if (response.statusCode == 200) {
         return true;
       }
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        return false;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('No se pudo validar token: $e');
+      return null;
+    }
+  }
+
+  Future<List<dynamic>> obtenerNotificacionesUsuario({
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$notificacionBaseUrl/api/notificaciones/user/$usuarioId'),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      debugPrint('Error obtener notificaciones: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente obtener notificaciones: $e');
+      return [];
+    }
+  }
+
+  Future<bool> marcarNotificacionComoLeida({
+    required int notificacionId,
+  }) async {
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$notificacionBaseUrl/api/notificaciones/$notificacionId/leida'),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error cliente marcar notificación como leída: $e');
+      return false;
+    }
+  }
+
+  bool _valorLeidaComoBool(dynamic valor) {
+    if (valor is bool) {
+      return valor;
+    }
+
+    if (valor is String) {
+      return valor.toLowerCase() == 'true';
+    }
+
+    if (valor is int) {
+      return valor == 1;
     }
 
     return false;
-  } catch (e) {
-    debugPrint('Error verificando dirección del bloqueo: $e');
-    return false;
   }
-}
+
+  Future<int> marcarNotificacionesMensajeComoLeidas({
+    required int usuarioId,
+  }) async {
+    try {
+      final data = await obtenerNotificacionesUsuario(
+        usuarioId: usuarioId,
+      );
+
+      int totalMarcadas = 0;
+
+      for (final item in data) {
+        if (item is! Map) continue;
+
+        final id = int.tryParse(item['id']?.toString() ?? '');
+        final tipo = item['tipo']?.toString().toUpperCase().trim() ?? '';
+        final leida = _valorLeidaComoBool(item['leida']);
+
+        if (id == null) continue;
+
+        if (tipo == 'MENSAJE' && !leida) {
+          final ok = await marcarNotificacionComoLeida(
+            notificacionId: id,
+          );
+
+          if (ok) {
+            totalMarcadas++;
+          }
+        }
+      }
+
+      if (totalMarcadas > 0) {
+        debugPrint(
+          'Notificaciones de mensaje marcadas como leídas: $totalMarcadas',
+        );
+      }
+
+      return totalMarcadas;
+    } catch (e) {
+      debugPrint('Error marcando notificaciones de mensaje como leídas: $e');
+      return 0;
+    }
+  }
+
+  Future<List<dynamic>> listarBloqueosPorUsuario({
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$seguridadBaseUrl/api/safety/bloqueos/user/$usuarioId'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      debugPrint('Error listar bloqueos por usuario: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente listar bloqueos por usuario: $e');
+      return [];
+    }
+  }
+
+  Future<bool> usuarioBloqueoA({
+    required int usuarioOrigenId,
+    required int usuarioBloqueadoId,
+  }) async {
+    try {
+      final bloqueos = await listarBloqueosPorUsuario(
+        usuarioId: usuarioOrigenId,
+      );
+
+      for (final item in bloqueos) {
+        if (item is! Map) continue;
+
+        final idBloqueado = int.tryParse(
+          item['idUsuarioBloqueado']?.toString() ?? '',
+        );
+
+        if (idBloqueado == usuarioBloqueadoId) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('Error verificando dirección del bloqueo: $e');
+      return false;
+    }
+  }
 
   Future<bool> reportarUsuario({
     required int idUsuarioDenunciante,
@@ -682,7 +693,7 @@ Future<bool> usuarioBloqueoA({
     }
   }
 
-    Future<List<dynamic>> descubrirSquads({
+  Future<List<dynamic>> descubrirSquads({
     required int usuarioId,
     String deporte = 'Todos',
     double? latitud,
@@ -710,9 +721,12 @@ Future<bool> usuarioBloqueoA({
       final response = await http
           .get(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('DESCUBRIR SQUADS STATUS: ${response.statusCode}');
+      debugPrint('DESCUBRIR SQUADS RESPONSE: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -724,8 +738,6 @@ Future<bool> usuarioBloqueoA({
         return [];
       }
 
-      debugPrint('Error descubrir squads: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return [];
     } catch (e) {
       debugPrint('Error cliente descubrir squads: $e');
@@ -743,31 +755,37 @@ Future<bool> usuarioBloqueoA({
     double? longitud,
   }) async {
     try {
+      final body = {
+        'creadorId': creadorId,
+        'nombre': nombre.trim(),
+        'deporte': deporte.trim().toUpperCase(),
+        'descripcion': descripcion.trim(),
+        'maxIntegrantes': maxIntegrantes,
+        if (latitud != null) 'latitud': latitud,
+        if (longitud != null) 'longitud': longitud,
+      };
+
+      debugPrint('CREAR SQUAD URL: $comunicacionBaseUrl/api/v1/squads');
+      debugPrint('CREAR SQUAD BODY: ${jsonEncode(body)}');
+
       final response = await http
           .post(
             Uri.parse('$comunicacionBaseUrl/api/v1/squads'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'creadorId': creadorId,
-              'nombre': nombre,
-              'deporte': deporte,
-              'descripcion': descripcion,
-              'maxIntegrantes': maxIntegrantes,
-              'latitud': latitud,
-              'longitud': longitud,
-            }),
+            headers: await _squadAuthHeaders(),
+            body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('CREAR SQUAD STATUS: ${response.statusCode}');
+      debugPrint('CREAR SQUAD RESPONSE: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return true;
       }
 
-      debugPrint('Error crear squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return false;
     } catch (e) {
-      debugPrint('Error cliente crear squad: $e');
+      debugPrint('ERROR CLIENTE CREAR SQUAD: $e');
       return false;
     }
   }
@@ -779,9 +797,12 @@ Future<bool> usuarioBloqueoA({
       final response = await http
           .get(
             Uri.parse('$comunicacionBaseUrl/api/v1/squads/mis-squads/$usuarioId'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('MIS SQUADS STATUS: ${response.statusCode}');
+      debugPrint('MIS SQUADS RESPONSE: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -793,8 +814,6 @@ Future<bool> usuarioBloqueoA({
         return [];
       }
 
-      debugPrint('Error obtener mis squads: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return [];
     } catch (e) {
       debugPrint('Error cliente obtener mis squads: $e');
@@ -810,12 +829,15 @@ Future<bool> usuarioBloqueoA({
       final response = await http
           .post(
             Uri.parse('$comunicacionBaseUrl/api/v1/squads/$squadId/solicitudes'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
             body: jsonEncode({
               'usuarioId': usuarioId,
             }),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('SOLICITAR SQUAD STATUS: ${response.statusCode}');
+      debugPrint('SOLICITAR SQUAD RESPONSE: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return true;
@@ -827,8 +849,6 @@ Future<bool> usuarioBloqueoA({
         return true;
       }
 
-      debugPrint('Error solicitar entrada squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return false;
     } catch (e) {
       debugPrint('Error cliente solicitar entrada squad: $e');
@@ -846,9 +866,12 @@ Future<bool> usuarioBloqueoA({
             Uri.parse(
               '$comunicacionBaseUrl/api/v1/squads/$squadId/mensajes?usuarioId=$usuarioId&page=0&size=50',
             ),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('MENSAJES SQUAD STATUS: ${response.statusCode}');
+      debugPrint('MENSAJES SQUAD RESPONSE: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -864,8 +887,6 @@ Future<bool> usuarioBloqueoA({
         return [];
       }
 
-      debugPrint('Error obtener mensajes squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return [];
     } catch (e) {
       debugPrint('Error cliente obtener mensajes squad: $e');
@@ -882,13 +903,16 @@ Future<bool> usuarioBloqueoA({
       final response = await http
           .post(
             Uri.parse('$comunicacionBaseUrl/api/v1/squads/$squadId/mensajes'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
             body: jsonEncode({
               'remitenteId': remitenteId,
               'contenido': contenido,
             }),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('ENVIAR MENSAJE SQUAD STATUS: ${response.statusCode}');
+      debugPrint('ENVIAR MENSAJE SQUAD RESPONSE: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -900,8 +924,6 @@ Future<bool> usuarioBloqueoA({
         return null;
       }
 
-      debugPrint('Error enviar mensaje squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return null;
     } catch (e) {
       debugPrint('Error cliente enviar mensaje squad: $e');
@@ -909,7 +931,7 @@ Future<bool> usuarioBloqueoA({
     }
   }
 
-    Future<List<dynamic>> listarSolicitudesSquad({
+  Future<List<dynamic>> listarSolicitudesSquad({
     required int squadId,
     required int adminId,
   }) async {
@@ -919,9 +941,12 @@ Future<bool> usuarioBloqueoA({
             Uri.parse(
               '$comunicacionBaseUrl/api/v1/squads/$squadId/solicitudes?adminId=$adminId',
             ),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
           )
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('SOLICITUDES SQUAD STATUS: ${response.statusCode}');
+      debugPrint('SOLICITUDES SQUAD RESPONSE: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -933,8 +958,6 @@ Future<bool> usuarioBloqueoA({
         return [];
       }
 
-      debugPrint('Error listar solicitudes squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
       return [];
     } catch (e) {
       debugPrint('Error cliente listar solicitudes squad: $e');
@@ -952,17 +975,14 @@ Future<bool> usuarioBloqueoA({
             Uri.parse(
               '$comunicacionBaseUrl/api/v1/squads/solicitudes/$solicitudId/aceptar?adminId=$adminId',
             ),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
           )
           .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      }
+      debugPrint('ACEPTAR SOLICITUD SQUAD STATUS: ${response.statusCode}');
+      debugPrint('ACEPTAR SOLICITUD SQUAD RESPONSE: ${response.body}');
 
-      debugPrint('Error aceptar solicitud squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
-      return false;
+      return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       debugPrint('Error cliente aceptar solicitud squad: $e');
       return false;
@@ -979,21 +999,17 @@ Future<bool> usuarioBloqueoA({
             Uri.parse(
               '$comunicacionBaseUrl/api/v1/squads/solicitudes/$solicitudId/rechazar?adminId=$adminId',
             ),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _squadAuthHeaders(),
           )
           .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      }
+      debugPrint('RECHAZAR SOLICITUD SQUAD STATUS: ${response.statusCode}');
+      debugPrint('RECHAZAR SOLICITUD SQUAD RESPONSE: ${response.body}');
 
-      debugPrint('Error rechazar solicitud squad: ${response.statusCode}');
-      debugPrint('Respuesta backend: ${response.body}');
-      return false;
+      return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       debugPrint('Error cliente rechazar solicitud squad: $e');
       return false;
     }
   }
-
 }
