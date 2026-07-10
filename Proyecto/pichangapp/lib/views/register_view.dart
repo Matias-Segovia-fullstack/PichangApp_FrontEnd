@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import '../controllers/auth_controller.dart';
 
 class RegisterView extends StatefulWidget {
@@ -16,26 +15,20 @@ class _RegisterViewState extends State<RegisterView> {
   final TextEditingController _numeroDeportivoController = TextEditingController(text: '180');
 
   bool _isLoading = false;
-  bool _isLocationLoading = false;
 
-  Position? _ubicacion;
-  String _ubicacionMensaje = 'Debes permitir ubicación para crear tu cuenta deportiva.';
-
-  String _sexoSeleccionado = 'MASCULINO';
+  String? _sexoSeleccionado;
   String _deporteSeleccionado = 'BASKET';
   String _posicionSeleccionada = 'Base';
+
+  final List<String> _sexos = [
+    'Masculino',
+    'Femenino',
+  ];
 
   final Map<String, List<String>> _posicionesPorDeporte = {
     'BASKET': ['Base', 'Escolta', 'Alero', 'Ala Pívot', 'Pívot'],
     'BOXEO': ['Ortodoxa', 'Zurda'],
   };
-
-  final List<String> _sexos = [
-    'MASCULINO',
-    'FEMENINO',
-    'OTRO',
-    'PREFIERO_NO_DECIR',
-  ];
 
   @override
   void dispose() {
@@ -45,85 +38,17 @@ class _RegisterViewState extends State<RegisterView> {
     super.dispose();
   }
 
-  Future<Position?> _obtenerUbicacion() async {
-    if (!mounted) return null;
-
-    setState(() {
-      _isLocationLoading = true;
-      _ubicacionMensaje = 'Solicitando ubicación...';
-    });
-
-    try {
-      final bool servicioHabilitado = await Geolocator.isLocationServiceEnabled();
-
-      if (!servicioHabilitado) {
-        if (mounted) {
-          setState(() {
-            _ubicacionMensaje = 'Activa la ubicación del dispositivo o navegador.';
-          });
-        }
-        return null;
-      }
-
-      LocationPermission permiso = await Geolocator.checkPermission();
-
-      if (permiso == LocationPermission.denied) {
-        permiso = await Geolocator.requestPermission();
-      }
-
-      if (permiso == LocationPermission.denied) {
-        if (mounted) {
-          setState(() {
-            _ubicacionMensaje = 'Permiso de ubicación rechazado.';
-          });
-        }
-        return null;
-      }
-
-      if (permiso == LocationPermission.deniedForever) {
-        if (mounted) {
-          setState(() {
-            _ubicacionMensaje = 'Permiso de ubicación bloqueado. Habilítalo desde el navegador o sistema.';
-          });
-        }
-        return null;
-      }
-
-      final Position posicion = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      if (mounted) {
-        setState(() {
-          _ubicacion = posicion;
-          _ubicacionMensaje =
-              'Ubicación lista: ${posicion.latitude.toStringAsFixed(5)}, ${posicion.longitude.toStringAsFixed(5)}';
-        });
-      }
-
-      return posicion;
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _ubicacionMensaje = 'No se pudo obtener la ubicación.';
-        });
-      }
-      return null;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLocationLoading = false;
-        });
-      }
-    }
-  }
-
   Future<void> _registrar() async {
     final int? edad = int.tryParse(_edadController.text.trim());
     final int? numeroDeportivo = int.tryParse(_numeroDeportivoController.text.trim());
 
-    if (edad == null || edad <= 0) {
-      _mostrarMensaje('Ingresa una edad válida.', Colors.red);
+    if (edad == null || edad < 18) {
+      _mostrarMensaje('Debes ser mayor de edad para usar PichangApp.', Colors.red);
+      return;
+    }
+
+    if (_sexoSeleccionado == null || _sexoSeleccionado!.trim().isEmpty) {
+      _mostrarMensaje('Debes seleccionar tu sexo.', Colors.red);
       return;
     }
 
@@ -142,30 +67,12 @@ class _RegisterViewState extends State<RegisterView> {
     });
 
     try {
-      final Position? posicion = _ubicacion ?? await _obtenerUbicacion();
-
-      if (posicion == null) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
-
-        _mostrarMensaje(
-          'Para usar Discover debes permitir ubicación.',
-          Colors.red,
-        );
-        return;
-      }
-
       final bool success = await _authController.registrar(
         edad: edad,
-        sexo: _sexoSeleccionado,
+        sexo: _sexoSeleccionado!,
         deportePrincipal: _deporteSeleccionado,
         numeroDeportivo: numeroDeportivo,
         posicionOGuardia: _posicionSeleccionada,
-        latitud: posicion.latitude,
-        longitud: posicion.longitude,
       );
 
       if (!mounted) return;
@@ -228,7 +135,7 @@ class _RegisterViewState extends State<RegisterView> {
 
   Widget _selector({
     required String label,
-    required String value,
+    required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
     required IconData icon,
@@ -247,37 +154,6 @@ class _RegisterViewState extends State<RegisterView> {
         );
       }).toList(),
       onChanged: onChanged,
-    );
-  }
-
-  Widget _tarjetaUbicacion() {
-    final bool tieneUbicacion = _ubicacion != null;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              tieneUbicacion ? Icons.location_on : Icons.location_off_outlined,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(_ubicacionMensaje),
-            ),
-            TextButton(
-              onPressed: (_isLoading || _isLocationLoading) ? null : _obtenerUbicacion,
-              child: _isLocationLoading
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Tomar ubicación'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -340,8 +216,8 @@ class _RegisterViewState extends State<RegisterView> {
                 const SizedBox(height: 16),
                 _campo(
                   controller: _authController.rutController,
-                  label: 'RUT opcional',
-                  icon: Icons.badge,
+                  label: 'Descripción deportiva',
+                  icon: Icons.description_outlined,
                 ),
                 const SizedBox(height: 16),
                 _campo(
@@ -356,8 +232,6 @@ class _RegisterViewState extends State<RegisterView> {
                   value: _sexoSeleccionado,
                   items: _sexos,
                   onChanged: (valor) {
-                    if (valor == null) return;
-
                     setState(() {
                       _sexoSeleccionado = valor;
                     });
@@ -395,11 +269,9 @@ class _RegisterViewState extends State<RegisterView> {
                       ? Icons.sports_martial_arts_outlined
                       : Icons.sports_soccer_outlined,
                 ),
-                const SizedBox(height: 16),
-                _tarjetaUbicacion(),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: (_isLoading || _isLocationLoading) ? null : _registrar,
+                  onPressed: _isLoading ? null : _registrar,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: _isLoading

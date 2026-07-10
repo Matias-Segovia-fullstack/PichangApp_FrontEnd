@@ -27,12 +27,14 @@ class _MatchSportViewState extends State<MatchSportView> {
   bool _isSending = false;
   String? _error;
 
-  double _distanciaMinKm = 0;
-  double _distanciaMaxKm = 50;
+  double _distanciaMaxKm = 1;
 
   int _edadMin = 18;
   int _edadMax = 80;
-  String _sexoFiltro = 'TODOS';
+  String _sexoFiltro = 'Todos';
+
+  double? _miLatitudActual;
+  double? _miLongitudActual;
 
   @override
   void initState() {
@@ -46,29 +48,20 @@ class _MatchSportViewState extends State<MatchSportView> {
   }
 
   Future<void> _cargarConfiguracionFiltros() async {
-    final minTexto = await _storage.read(key: 'discover_distancia_min_km');
     final maxTexto = await _storage.read(key: 'discover_distancia_max_km');
     final edadMinTexto = await _storage.read(key: 'discover_edad_min');
     final edadMaxTexto = await _storage.read(key: 'discover_edad_max');
     final sexoTexto = await _storage.read(key: 'discover_sexo');
 
-    final min = double.tryParse(minTexto ?? '');
     final max = double.tryParse(maxTexto ?? '');
 
-    _distanciaMinKm = _limitarDistancia(min ?? 0);
-    _distanciaMaxKm = _limitarDistancia(max ?? 50);
-
-    if (_distanciaMinKm > _distanciaMaxKm) {
-      final temporal = _distanciaMinKm;
-      _distanciaMinKm = _distanciaMaxKm;
-      _distanciaMaxKm = temporal;
-    }
+    _distanciaMaxKm = _limitarDistancia(max ?? 1);
 
     _edadMin = int.tryParse(edadMinTexto ?? '') ?? 18;
     _edadMax = int.tryParse(edadMaxTexto ?? '') ?? 80;
-    _sexoFiltro = sexoTexto ?? 'TODOS';
+    _sexoFiltro = sexoTexto ?? 'Todos';
 
-    if (_edadMin < 13) _edadMin = 13;
+    if (_edadMin < 18) _edadMin = 18;
     if (_edadMax > 100) _edadMax = 100;
 
     if (_edadMin > _edadMax) {
@@ -77,23 +70,18 @@ class _MatchSportViewState extends State<MatchSportView> {
       _edadMax = temporal;
     }
 
-    if (!['TODOS', 'MASCULINO', 'FEMENINO', 'OTRO', 'PREFIERO_NO_DECIR'].contains(_sexoFiltro)) {
-      _sexoFiltro = 'TODOS';
+    if (!['Todos', 'Masculino', 'Femenino'].contains(_sexoFiltro)) {
+      _sexoFiltro = 'Todos';
     }
   }
 
   double _limitarDistancia(double valor) {
-    if (valor < 0) return 0;
-    if (valor > 200) return 200;
+    if (valor < 1) return 1;
+    if (valor > 50) return 50;
     return valor;
   }
 
   Future<void> _guardarConfiguracionFiltros() async {
-    await _storage.write(
-      key: 'discover_distancia_min_km',
-      value: _distanciaMinKm.toStringAsFixed(0),
-    );
-
     await _storage.write(
       key: 'discover_distancia_max_km',
       value: _distanciaMaxKm.toStringAsFixed(0),
@@ -147,6 +135,9 @@ class _MatchSportViewState extends State<MatchSportView> {
   }) async {
     final Position posicion = await _obtenerUbicacionActual();
 
+    _miLatitudActual = posicion.latitude;
+    _miLongitudActual = posicion.longitude;
+
     final bool actualizado = await _apiService.actualizarPerfilUsuario(
       token: token,
       userId: userId,
@@ -158,6 +149,32 @@ class _MatchSportViewState extends State<MatchSportView> {
 
     if (!actualizado) {
       throw Exception('No se pudo actualizar tu ubicación antes de cargar Discover.');
+    }
+  }
+
+  Future<Set<int>> _obtenerUsuariosBloqueados(int usuarioId) async {
+    try {
+      final data = await _apiService.listarBloqueosPorUsuario(
+        usuarioId: usuarioId,
+      );
+
+      final bloqueados = <int>{};
+
+      for (final item in data) {
+        if (item is! Map) continue;
+
+        final idBloqueado = int.tryParse(
+          item['idUsuarioBloqueado']?.toString() ?? '',
+        );
+
+        if (idBloqueado != null) {
+          bloqueados.add(idBloqueado);
+        }
+      }
+
+      return bloqueados;
+    } catch (_) {
+      return {};
     }
   }
 
@@ -191,7 +208,7 @@ class _MatchSportViewState extends State<MatchSportView> {
       final usuariosRaw = await _apiService.descubrirUsuarios(
         excludeId: userId,
         token: token,
-        distanciaMinKm: _distanciaMinKm,
+        distanciaMinKm: 0,
         distanciaMaxKm: _distanciaMaxKm,
         edadMin: _edadMin,
         edadMax: _edadMax,
@@ -202,12 +219,22 @@ class _MatchSportViewState extends State<MatchSportView> {
         usuarioId: userId,
       );
 
+      final usuariosBloqueados = await _obtenerUsuariosBloqueados(userId);
+
       final usuariosInteractuadosSet = usuariosInteractuados.toSet();
 
       final deportistas = usuariosRaw
           .whereType<Map<String, dynamic>>()
-          .map(Deportista.fromJson)
-          .where((d) => d.id != 0 && !usuariosInteractuadosSet.contains(d.id))
+          .map(
+            (json) => Deportista.fromJson(
+              json,
+              miLatitud: _miLatitudActual,
+              miLongitud: _miLongitudActual,
+            ),
+          )
+          .where((d) => d.id != 0)
+          .where((d) => !usuariosInteractuadosSet.contains(d.id))
+          .where((d) => !usuariosBloqueados.contains(d.id))
           .toList();
 
       if (!mounted) return;
@@ -229,10 +256,7 @@ class _MatchSportViewState extends State<MatchSportView> {
   }
 
   Future<void> _abrirConfiguracionFiltros() async {
-    RangeValues distanciaTemporal = RangeValues(
-      _distanciaMinKm,
-      _distanciaMaxKm,
-    );
+    double distanciaTemporal = _distanciaMaxKm;
 
     RangeValues edadTemporal = RangeValues(
       _edadMin.toDouble(),
@@ -265,7 +289,7 @@ class _MatchSportViewState extends State<MatchSportView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Distancia',
+                      'Distancia máxima',
                       style: TextStyle(
                         color: AppTheme.textPrimary,
                         fontWeight: FontWeight.bold,
@@ -273,30 +297,32 @@ class _MatchSportViewState extends State<MatchSportView> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${distanciaTemporal.start.round()} km a ${distanciaTemporal.end.round()} km',
+                      'Hasta ${distanciaTemporal.round()} km',
                       style: const TextStyle(
                         color: AppTheme.primarySoft,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
-                    RangeSlider(
-                      values: distanciaTemporal,
-                      min: 0,
-                      max: 200,
-                      divisions: 40,
-                      labels: RangeLabels(
-                        '${distanciaTemporal.start.round()} km',
-                        '${distanciaTemporal.end.round()} km',
-                      ),
+                    Slider(
+                      value: distanciaTemporal,
+                      min: 1,
+                      max: 50,
+                      divisions: 49,
+                      label: '${distanciaTemporal.round()} km',
                       onChanged: (nuevoValor) {
                         setDialogState(() {
-                          distanciaTemporal = RangeValues(
-                            nuevoValor.start.roundToDouble(),
-                            nuevoValor.end.roundToDouble(),
-                          );
+                          distanciaTemporal = nuevoValor.roundToDouble();
                         });
                       },
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Base: hasta 1 km. Puedes ampliar la búsqueda hasta 50 km.',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 18),
                     const Text(
@@ -317,9 +343,9 @@ class _MatchSportViewState extends State<MatchSportView> {
                     ),
                     RangeSlider(
                       values: edadTemporal,
-                      min: 13,
+                      min: 18,
                       max: 100,
-                      divisions: 87,
+                      divisions: 82,
                       labels: RangeLabels(
                         '${edadTemporal.start.round()}',
                         '${edadTemporal.end.round()}',
@@ -348,11 +374,18 @@ class _MatchSportViewState extends State<MatchSportView> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'TODOS', child: Text('Todos')),
-                        DropdownMenuItem(value: 'MASCULINO', child: Text('Masculino')),
-                        DropdownMenuItem(value: 'FEMENINO', child: Text('Femenino')),
-                        DropdownMenuItem(value: 'OTRO', child: Text('Otro')),
-                        DropdownMenuItem(value: 'PREFIERO_NO_DECIR', child: Text('Prefiero no decir')),
+                        DropdownMenuItem(
+                          value: 'Todos',
+                          child: Text('Todos'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Masculino',
+                          child: Text('Masculino'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Femenino',
+                          child: Text('Femenino'),
+                        ),
                       ],
                       onChanged: (valor) {
                         if (valor == null) return;
@@ -381,8 +414,7 @@ class _MatchSportViewState extends State<MatchSportView> {
                 ElevatedButton(
                   onPressed: () async {
                     setState(() {
-                      _distanciaMinKm = distanciaTemporal.start;
-                      _distanciaMaxKm = distanciaTemporal.end;
+                      _distanciaMaxKm = distanciaTemporal;
                       _edadMin = edadTemporal.start.round();
                       _edadMax = edadTemporal.end.round();
                       _sexoFiltro = sexoTemporal;
@@ -404,6 +436,248 @@ class _MatchSportViewState extends State<MatchSportView> {
         );
       },
     );
+  }
+
+  Future<void> _bloquearUsuarioActual(Deportista deportista) async {
+    if (_miUsuarioId == null) return;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surface,
+          title: const Text(
+            'Bloquear usuario',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          content: Text(
+            'No volverás a ver a ${deportista.nombreCompleto} en Discover.',
+            style: const TextStyle(color: AppTheme.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Bloquear'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) return;
+
+    final ok = await _apiService.bloquearUsuario(
+      idUsuarioOrigen: _miUsuarioId!,
+      idUsuarioBloqueado: deportista.id,
+    );
+
+    if (!mounted) return;
+
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${deportista.nombreCompleto} fue bloqueado.'),
+        ),
+      );
+
+      _pasarAlSiguienteUsuario();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo bloquear el usuario.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _reportarUsuarioActual(
+    Deportista deportista, {
+    required bool bloquearTambien,
+  }) async {
+    if (_miUsuarioId == null) return;
+
+    final descripcionController = TextEditingController();
+
+    final descripcion = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surface,
+          title: const Text(
+            'Reportar usuario',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'El reporte será enviado a administración para revisión.',
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: descripcionController,
+                maxLines: 3,
+                style: const TextStyle(color: AppTheme.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'Motivo del reporte',
+                  hintText: 'Describe brevemente qué ocurrió',
+                  prefixIcon: Icon(Icons.report_outlined),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final texto = descripcionController.text.trim();
+
+                if (texto.isEmpty) {
+                  Navigator.pop(dialogContext, 'Reporte desde Discovery');
+                  return;
+                }
+
+                Navigator.pop(dialogContext, texto);
+              },
+              child: const Text('Enviar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    descripcionController.dispose();
+
+    if (descripcion == null) return;
+
+    final reporteOk = await _apiService.reportarUsuario(
+      idUsuarioDenunciante: _miUsuarioId!,
+      idUsuarioDenunciado: deportista.id,
+      motivo: 'Reporte desde Discovery',
+      descripcion: descripcion,
+    );
+
+    bool bloqueoOk = true;
+
+    if (bloquearTambien) {
+      bloqueoOk = await _apiService.bloquearUsuario(
+        idUsuarioOrigen: _miUsuarioId!,
+        idUsuarioBloqueado: deportista.id,
+      );
+    }
+
+    if (!mounted) return;
+
+    if (reporteOk && bloqueoOk) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            bloquearTambien
+                ? 'Reporte enviado y usuario bloqueado.'
+                : 'Reporte enviado a administración.',
+          ),
+        ),
+      );
+
+      _pasarAlSiguienteUsuario();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo completar la acción.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    }
+  }
+
+  void _pasarAlSiguienteUsuario() {
+    if (!mounted) return;
+
+    setState(() {
+      _indiceActual++;
+      _isSending = false;
+    });
+  }
+
+  Future<void> _abrirMenuUsuario(Deportista deportista) async {
+    final accion = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (bottomContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.block, color: AppTheme.danger),
+                  title: const Text(
+                    'Bloquear',
+                    style: TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  onTap: () => Navigator.pop(bottomContext, 'bloquear'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.report_outlined, color: AppTheme.primarySoft),
+                  title: const Text(
+                    'Reportar',
+                    style: TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  onTap: () => Navigator.pop(bottomContext, 'reportar'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.gpp_bad_outlined, color: AppTheme.danger),
+                  title: const Text(
+                    'Reportar y bloquear',
+                    style: TextStyle(color: AppTheme.textPrimary),
+                  ),
+                  onTap: () => Navigator.pop(bottomContext, 'reportar_bloquear'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (accion == 'bloquear') {
+      await _bloquearUsuarioActual(deportista);
+    }
+
+    if (accion == 'reportar') {
+      await _reportarUsuarioActual(
+        deportista,
+        bloquearTambien: false,
+      );
+    }
+
+    if (accion == 'reportar_bloquear') {
+      await _reportarUsuarioActual(
+        deportista,
+        bloquearTambien: true,
+      );
+    }
   }
 
   Future<void> _enviarInteraccion(String tipo) async {
@@ -597,43 +871,6 @@ class _MatchSportViewState extends State<MatchSportView> {
     );
   }
 
-  Widget _barraFiltrosActuales() {
-    final sexoTexto = _sexoFiltro == 'TODOS' ? 'Todos' : _sexoFiltro;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.tune,
-            color: AppTheme.primarySoft,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Distancia ${_distanciaMinKm.round()} a ${_distanciaMaxKm.round()} km · Edad $_edadMin a $_edadMax · Sexo $sexoTexto',
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: _abrirConfiguracionFiltros,
-            child: const Text('Cambiar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _construirTarjeta(Deportista deportista) {
     return Column(
       children: [
@@ -650,93 +887,131 @@ class _MatchSportViewState extends State<MatchSportView> {
             },
             background: Container(),
             secondaryBackground: Container(),
-            child: Card(
-              color: AppTheme.surface,
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-                side: const BorderSide(
-                  color: AppTheme.border,
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(30),
-                      ),
-                      child: Image.network(
-                        deportista.fotoUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: AppTheme.surfaceAlt,
-                          child: const Icon(
-                            Icons.person,
-                            size: 80,
-                            color: AppTheme.primarySoft,
+            child: Stack(
+              children: [
+                Card(
+                  color: AppTheme.surface,
+                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    side: const BorderSide(
+                      color: AppTheme.border,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(30),
+                          ),
+                          child: Image.network(
+                            deportista.fotoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: AppTheme.surfaceAlt,
+                              child: const Icon(
+                                Icons.person,
+                                size: 80,
+                                color: AppTheme.primarySoft,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            deportista.edad > 0
-                                ? '${deportista.nombreCompleto}, ${deportista.edad}'
-                                : deportista.nombreCompleto,
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            '@${deportista.username}',
-                            style: const TextStyle(
-                              color: AppTheme.primarySoft,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
+                      Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _infoChip(
-                                deportista.deportePrincipal,
-                                Icons.sports_soccer,
+                              Text(
+                                deportista.edad > 0
+                                    ? '${deportista.nombreCompleto}, ${deportista.edad}'
+                                    : deportista.nombreCompleto,
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.textPrimary,
+                                ),
                               ),
-                              _infoChip(
-                                deportista.sexo,
-                                Icons.person_search,
+                              const SizedBox(height: 2),
+                              Text(
+                                '@${deportista.username}',
+                                style: const TextStyle(
+                                  color: AppTheme.primarySoft,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              _infoChip(
-                                deportista.posicion,
-                                Icons.place,
+                              const SizedBox(height: 4),
+                              Text(
+                                deportista.distanciaTexto,
+                                style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              _infoChip(
-                                deportista.altura,
-                                Icons.height,
+                              const SizedBox(height: 10),
+                              Text(
+                                deportista.descripcion,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _infoChip(
+                                    deportista.deportePrincipal,
+                                    Icons.sports_soccer,
+                                  ),
+                                  _infoChip(
+                                    deportista.sexo,
+                                    Icons.person_search,
+                                  ),
+                                  _infoChip(
+                                    deportista.posicion,
+                                    Icons.place,
+                                  ),
+                                  _infoChip(
+                                    deportista.altura,
+                                    Icons.height,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  top: 30,
+                  right: 30,
+                  child: IconButton(
+                    onPressed: () => _abrirMenuUsuario(deportista),
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: AppTheme.textPrimary,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppTheme.background.withOpacity(0.75),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -812,7 +1087,7 @@ class _MatchSportViewState extends State<MatchSportView> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Rango actual: ${_distanciaMinKm.round()} a ${_distanciaMaxKm.round()} km · Edad $_edadMin a $_edadMax · Sexo ${_sexoFiltro == 'TODOS' ? 'Todos' : _sexoFiltro}.',
+              'Filtros actuales: hasta ${_distanciaMaxKm.round()} km · Edad $_edadMin a $_edadMax · Sexo $_sexoFiltro.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppTheme.textSecondary),
             ),
@@ -906,12 +1181,7 @@ class _MatchSportViewState extends State<MatchSportView> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _barraFiltrosActuales(),
-          Expanded(child: contenido),
-        ],
-      ),
+      body: contenido,
     );
   }
 }

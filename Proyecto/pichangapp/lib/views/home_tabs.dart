@@ -8,6 +8,7 @@ import 'notifications_view.dart';
 import 'profile_view.dart';
 import 'login_view.dart';
 import '../services/api_service.dart';
+import '../services/location_sync_service.dart';
 import '../theme/app_theme.dart';
 
 class HomeTabs extends StatefulWidget {
@@ -19,6 +20,7 @@ class HomeTabs extends StatefulWidget {
 
 class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
+  final LocationSyncService _locationSyncService = LocationSyncService();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   int _selectedIndex = 0;
@@ -27,6 +29,7 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
 
   bool _validandoSesion = false;
   bool _cargandoContador = false;
+  bool _sincronizandoUbicacion = false;
 
   Timer? _notificacionesTimer;
 
@@ -39,6 +42,7 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _validarSesionSiCorresponde();
       _cargarContadorNotificaciones();
+      _sincronizarUbicacionSiYaHayPermiso();
     });
 
     _notificacionesTimer = Timer.periodic(
@@ -59,12 +63,27 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _validarSesionSiCorresponde();
       _cargarContadorNotificaciones();
+      _sincronizarUbicacionSiYaHayPermiso();
 
       if (_selectedIndex == 2 && mounted) {
         setState(() {
           _notificacionesVersion++;
         });
       }
+    }
+  }
+
+  Future<void> _sincronizarUbicacionSiYaHayPermiso() async {
+    if (_sincronizandoUbicacion) return;
+
+    _sincronizandoUbicacion = true;
+
+    try {
+      await _locationSyncService.sincronizarSiPermisoPrevio();
+    } catch (e) {
+      debugPrint('No se pudo sincronizar ubicación en HomeTabs: $e');
+    } finally {
+      _sincronizandoUbicacion = false;
     }
   }
 
@@ -213,6 +232,10 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
 
     if (index == 2) {
       _cargarContadorNotificaciones();
+    }
+
+    if (index == 0) {
+      _sincronizarUbicacionSiYaHayPermiso();
     }
   }
 

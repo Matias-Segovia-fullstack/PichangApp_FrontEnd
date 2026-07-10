@@ -56,10 +56,84 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-  void _mostrarGooglePendiente() {
+  Future<void> _mostrarRecuperarPassword() async {
+    final controller = TextEditingController();
+    String? errorTexto;
+
+    final resultado = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+                side: const BorderSide(color: AppTheme.border),
+              ),
+              title: const Text(
+                'Recuperar contraseña',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ingresa tu correo o username. Por ahora el reseteo debe hacerlo el administrador del proyecto.',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: controller,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Correo o username',
+                      prefixIcon: const Icon(Icons.account_circle_outlined),
+                      errorText: errorTexto,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final valor = controller.text.trim();
+
+                    if (valor.isEmpty) {
+                      setDialogState(() {
+                        errorTexto = 'Ingresa un correo o username';
+                      });
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext, valor);
+                  },
+                  child: const Text('Solicitar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || resultado == null) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Google Login queda pendiente. Usa login con username.'),
+      SnackBar(
+        content: Text(
+          'Solicitud registrada para $resultado. Debe resetearse desde administración.',
+        ),
       ),
     );
   }
@@ -130,7 +204,6 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
                         const SizedBox(height: 26),
-
                         TextFormField(
                           controller: _authController.usernameController,
                           keyboardType: TextInputType.text,
@@ -147,7 +220,6 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
                         const SizedBox(height: 14),
-
                         TextFormField(
                           controller: _authController.passwordController,
                           obscureText: _obscureText,
@@ -176,11 +248,10 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
                         const SizedBox(height: 8),
-
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () {},
+                            onPressed: _isLoading ? null : _mostrarRecuperarPassword,
                             child: const Text(
                               '¿Olvidaste tu contraseña?',
                               style: TextStyle(color: AppTheme.primarySoft),
@@ -188,7 +259,6 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
                         const SizedBox(height: 8),
-
                         SizedBox(
                           height: 52,
                           child: ElevatedButton(
@@ -218,46 +288,6 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
                         const SizedBox(height: 14),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(color: AppTheme.border),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8.0),
-                              child: Text(
-                                'o',
-                                style: TextStyle(color: AppTheme.textSecondary),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(color: AppTheme.border),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-
-                        OutlinedButton.icon(
-                          onPressed: _mostrarGooglePendiente,
-                          icon: const Icon(
-                            Icons.g_mobiledata,
-                            color: Colors.redAccent,
-                            size: 26,
-                          ),
-                          label: const Text('Continuar con Google'),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: AppTheme.surfaceAlt,
-                            foregroundColor: AppTheme.textPrimary,
-                            side: const BorderSide(color: AppTheme.border),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-
                         TextButton(
                           onPressed: _isLoading
                               ? null
@@ -265,8 +295,7 @@ class _LoginViewState extends State<LoginView> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) =>
-                                          const RegisterView(),
+                                      builder: (context) => const RegisterView(),
                                     ),
                                   );
                                 },
@@ -276,7 +305,6 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
                         const SizedBox(height: 6),
-
                         const Text(
                           'Al continuar aceptas los términos y condiciones.',
                           textAlign: TextAlign.center,

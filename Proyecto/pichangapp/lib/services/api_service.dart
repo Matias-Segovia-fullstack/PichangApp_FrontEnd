@@ -139,10 +139,10 @@ class ApiService {
     required int excludeId,
     required String token,
     double distanciaMinKm = 0,
-    double distanciaMaxKm = 50,
+    double distanciaMaxKm = 1,
     int edadMin = 18,
     int edadMax = 80,
-    String sexo = 'TODOS',
+    String sexo = 'Todos',
   }) async {
     final uri = Uri.parse('$usuarioBaseUrl/api/users/discover').replace(
       queryParameters: {
@@ -648,5 +648,38 @@ Future<bool> usuarioBloqueoA({
     return false;
   }
 }
+
+  Future<bool> reportarUsuario({
+    required int idUsuarioDenunciante,
+    required int idUsuarioDenunciado,
+    required String motivo,
+    required String descripcion,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$seguridadBaseUrl/api/safety/reportar'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'idUsuarioDenunciante': idUsuarioDenunciante,
+              'idUsuarioDenunciado': idUsuarioDenunciado,
+              'motivo': motivo,
+              'descripcion': descripcion,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      }
+
+      debugPrint('Error reportar usuario: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente reportar usuario: $e');
+      return false;
+    }
+  }
 
 }

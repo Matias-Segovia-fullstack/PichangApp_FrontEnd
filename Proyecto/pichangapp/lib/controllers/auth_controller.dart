@@ -20,14 +20,13 @@ class AuthController {
     required String deportePrincipal,
     required int numeroDeportivo,
     required String posicionOGuardia,
-    required double latitud,
-    required double longitud,
   }) async {
     if (emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
         nameController.text.trim().isEmpty ||
         apellidoController.text.trim().isEmpty ||
-        usernameController.text.trim().isEmpty) {
+        usernameController.text.trim().isEmpty ||
+        sexo.trim().isEmpty) {
       return false;
     }
 
@@ -44,6 +43,10 @@ class AuthController {
             'posicion': posicionOGuardia,
           };
 
+    final descripcion = rutController.text.trim().isEmpty
+        ? 'Jugador amateur de PichangApp'
+        : rutController.text.trim();
+
     final Map<String, dynamic> userData = {
       'nombre': nameController.text.trim(),
       'apellido': apellidoController.text.trim(),
@@ -51,13 +54,11 @@ class AuthController {
       'email': emailController.text.trim(),
       'password': passwordController.text,
       'profile': {
-        'descripcion': 'Jugador amateur de PichangApp',
+        'descripcion': descripcion,
         'edad': edad,
-        'sexo': sexo,
+        'sexo': sexo.trim(),
         'fotoUrl': 'https://via.placeholder.com/150',
         'deportePrincipal': esBoxeo ? 'BOXEO' : 'BASKET',
-        'latitud': latitud,
-        'longitud': longitud,
         'atributosDeportivos': atributosDeportivos,
       },
     };
