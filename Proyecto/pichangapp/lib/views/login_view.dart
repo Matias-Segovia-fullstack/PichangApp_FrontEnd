@@ -83,7 +83,7 @@ class _LoginViewState extends State<LoginView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Ingresa tu correo o username. Por ahora el reseteo debe hacerlo el administrador del proyecto.',
+                    'Ingresa tu correo, el reseteo debe hacerlo el administrador del proyecto.',
                     style: TextStyle(color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 14),
@@ -91,7 +91,7 @@ class _LoginViewState extends State<LoginView> {
                     controller: controller,
                     style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
-                      labelText: 'Correo o username',
+                      labelText: 'Correo electronico',
                       prefixIcon: const Icon(Icons.account_circle_outlined),
                       errorText: errorTexto,
                     ),
