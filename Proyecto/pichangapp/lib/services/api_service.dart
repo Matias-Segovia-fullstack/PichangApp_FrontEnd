@@ -682,4 +682,318 @@ Future<bool> usuarioBloqueoA({
     }
   }
 
+    Future<List<dynamic>> descubrirSquads({
+    required int usuarioId,
+    String deporte = 'Todos',
+    double? latitud,
+    double? longitud,
+    double distanciaMaxKm = 500,
+  }) async {
+    try {
+      final query = <String, String>{
+        'usuarioId': usuarioId.toString(),
+        'deporte': deporte,
+        'distanciaMaxKm': distanciaMaxKm.toStringAsFixed(0),
+      };
+
+      if (latitud != null) {
+        query['latitud'] = latitud.toString();
+      }
+
+      if (longitud != null) {
+        query['longitud'] = longitud.toString();
+      }
+
+      final uri = Uri.parse('$comunicacionBaseUrl/api/v1/squads/discover')
+          .replace(queryParameters: query);
+
+      final response = await http
+          .get(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      debugPrint('Error descubrir squads: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente descubrir squads: $e');
+      return [];
+    }
+  }
+
+  Future<bool> crearSquad({
+    required int creadorId,
+    required String nombre,
+    required String deporte,
+    required String descripcion,
+    required int maxIntegrantes,
+    double? latitud,
+    double? longitud,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$comunicacionBaseUrl/api/v1/squads'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'creadorId': creadorId,
+              'nombre': nombre,
+              'deporte': deporte,
+              'descripcion': descripcion,
+              'maxIntegrantes': maxIntegrantes,
+              'latitud': latitud,
+              'longitud': longitud,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      }
+
+      debugPrint('Error crear squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente crear squad: $e');
+      return false;
+    }
+  }
+
+  Future<List<dynamic>> obtenerMisSquads({
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$comunicacionBaseUrl/api/v1/squads/mis-squads/$usuarioId'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      debugPrint('Error obtener mis squads: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente obtener mis squads: $e');
+      return [];
+    }
+  }
+
+  Future<bool> solicitarEntradaSquad({
+    required int squadId,
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$comunicacionBaseUrl/api/v1/squads/$squadId/solicitudes'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'usuarioId': usuarioId,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      }
+
+      final body = response.body.toLowerCase();
+
+      if (body.contains('pendiente') || body.contains('ya existe')) {
+        return true;
+      }
+
+      debugPrint('Error solicitar entrada squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente solicitar entrada squad: $e');
+      return false;
+    }
+  }
+
+  Future<List<dynamic>> obtenerMensajesSquad({
+    required int squadId,
+    required int usuarioId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '$comunicacionBaseUrl/api/v1/squads/$squadId/mensajes?usuarioId=$usuarioId&page=0&size=50',
+            ),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is Map<String, dynamic> && data['content'] is List) {
+          return data['content'] as List<dynamic>;
+        }
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      debugPrint('Error obtener mensajes squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente obtener mensajes squad: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> enviarMensajeSquad({
+    required int squadId,
+    required int remitenteId,
+    required String contenido,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$comunicacionBaseUrl/api/v1/squads/$squadId/mensajes'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'remitenteId': remitenteId,
+              'contenido': contenido,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+
+        return null;
+      }
+
+      debugPrint('Error enviar mensaje squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return null;
+    } catch (e) {
+      debugPrint('Error cliente enviar mensaje squad: $e');
+      return null;
+    }
+  }
+
+    Future<List<dynamic>> listarSolicitudesSquad({
+    required int squadId,
+    required int adminId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '$comunicacionBaseUrl/api/v1/squads/$squadId/solicitudes?adminId=$adminId',
+            ),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List) {
+          return data;
+        }
+
+        return [];
+      }
+
+      debugPrint('Error listar solicitudes squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return [];
+    } catch (e) {
+      debugPrint('Error cliente listar solicitudes squad: $e');
+      return [];
+    }
+  }
+
+  Future<bool> aceptarSolicitudSquad({
+    required int solicitudId,
+    required int adminId,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+              '$comunicacionBaseUrl/api/v1/squads/solicitudes/$solicitudId/aceptar?adminId=$adminId',
+            ),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      }
+
+      debugPrint('Error aceptar solicitud squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente aceptar solicitud squad: $e');
+      return false;
+    }
+  }
+
+  Future<bool> rechazarSolicitudSquad({
+    required int solicitudId,
+    required int adminId,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+              '$comunicacionBaseUrl/api/v1/squads/solicitudes/$solicitudId/rechazar?adminId=$adminId',
+            ),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      }
+
+      debugPrint('Error rechazar solicitud squad: ${response.statusCode}');
+      debugPrint('Respuesta backend: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error cliente rechazar solicitud squad: $e');
+      return false;
+    }
+  }
+
 }

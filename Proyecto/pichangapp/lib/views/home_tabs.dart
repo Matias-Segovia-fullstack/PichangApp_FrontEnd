@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'match_sport_view.dart';
+import 'discover_switch_view.dart';
 import 'chats_view.dart';
 import 'notifications_view.dart';
 import 'profile_view.dart';
@@ -242,7 +242,7 @@ class _HomeTabsState extends State<HomeTabs> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const MatchSportView(),
+      const DiscoverSwitchView(),
       const ChatsView(),
       NotificationsView(
         refreshVersion: _notificacionesVersion,

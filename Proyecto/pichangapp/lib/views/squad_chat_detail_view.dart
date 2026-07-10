@@ -1,0 +1,435 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+
+import '../models/mensaje_squad.dart';
+import '../models/squad.dart';
+import '../services/api_service.dart';
+import '../theme/app_theme.dart';
+
+class SquadChatDetailView extends StatefulWidget {
+  final Squad squad;
+  final int miUsuarioId;
+
+  const SquadChatDetailView({
+    super.key,
+    required this.squad,
+    required this.miUsuarioId,
+  });
+
+  @override
+  State<SquadChatDetailView> createState() => _SquadChatDetailViewState();
+}
+
+class _SquadChatDetailViewState extends State<SquadChatDetailView> {
+  final ApiService _apiService = ApiService();
+  final TextEditingController _messageController = TextEditingController();
+
+  bool _isLoading = true;
+  bool _isSending = false;
+  String? _error;
+  List<MensajeSquad> _mensajes = [];
+
+  Timer? _mensajesTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarMensajes();
+    _iniciarFallbackMensajes();
+  }
+
+  @override
+  void dispose() {
+    _mensajesTimer?.cancel();
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  void _iniciarFallbackMensajes() {
+    _mensajesTimer?.cancel();
+
+    _mensajesTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) {
+        if (!mounted) return;
+        _sincronizarMensajesSilencioso();
+      },
+    );
+  }
+
+  bool _mensajesSonDistintos(List<MensajeSquad> nuevos) {
+    if (_mensajes.length != nuevos.length) {
+      return true;
+    }
+
+    for (int i = 0; i < nuevos.length; i++) {
+      if (_mensajes[i].id != nuevos[i].id) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  Future<void> _cargarMensajes() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await _apiService.obtenerMensajesSquad(
+        squadId: widget.squad.id,
+        usuarioId: widget.miUsuarioId,
+      );
+
+      final mensajes = data
+          .whereType<Map<String, dynamic>>()
+          .map(MensajeSquad.fromJson)
+          .where((mensaje) => mensaje.id != 0)
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _mensajes = mensajes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _sincronizarMensajesSilencioso() async {
+    if (!mounted || _isLoading) return;
+
+    try {
+      final data = await _apiService.obtenerMensajesSquad(
+        squadId: widget.squad.id,
+        usuarioId: widget.miUsuarioId,
+      );
+
+      final mensajes = data
+          .whereType<Map<String, dynamic>>()
+          .map(MensajeSquad.fromJson)
+          .where((mensaje) => mensaje.id != 0)
+          .toList();
+
+      if (!mounted) return;
+
+      if (_mensajesSonDistintos(mensajes)) {
+        setState(() {
+          _mensajes = mensajes;
+        });
+      }
+    } catch (e) {
+      debugPrint('No se pudo sincronizar mensajes squad: $e');
+    }
+  }
+
+  void _insertarMensajeSiNoExiste(MensajeSquad nuevoMensaje) {
+    if (!mounted) return;
+
+    setState(() {
+      final existe = _mensajes.any((m) => m.id == nuevoMensaje.id);
+
+      if (!existe) {
+        _mensajes.insert(0, nuevoMensaje);
+      }
+    });
+  }
+
+  MensajeSquad _mensajeTemporal(String contenido) {
+    return MensajeSquad(
+      id: -DateTime.now().millisecondsSinceEpoch,
+      squadId: widget.squad.id,
+      remitenteId: widget.miUsuarioId,
+      contenido: contenido,
+      fechaEnvio: DateTime.now().toIso8601String(),
+    );
+  }
+
+  Future<void> _enviarMensaje() async {
+    final contenido = _messageController.text.trim();
+
+    if (contenido.isEmpty || _isSending) {
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    final respuesta = await _apiService.enviarMensajeSquad(
+      squadId: widget.squad.id,
+      remitenteId: widget.miUsuarioId,
+      contenido: contenido,
+    );
+
+    if (!mounted) return;
+
+    if (respuesta != null) {
+      _messageController.clear();
+
+      final mensaje = MensajeSquad.fromJson(respuesta);
+      _insertarMensajeSiNoExiste(
+        mensaje.id == 0 ? _mensajeTemporal(contenido) : mensaje,
+      );
+
+      await _sincronizarMensajesSilencioso();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo enviar el mensaje al squad.'),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSending = false;
+    });
+  }
+
+  Widget _mensajeBubble(MensajeSquad mensaje) {
+    final esMio = mensaje.remitenteId == widget.miUsuarioId;
+
+    return Align(
+      alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 280),
+        decoration: BoxDecoration(
+          color: esMio ? AppTheme.primary : AppTheme.surfaceAlt,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: esMio ? const Radius.circular(20) : Radius.zero,
+            bottomRight: esMio ? Radius.zero : const Radius.circular(20),
+          ),
+          border: esMio
+              ? null
+              : Border.all(color: AppTheme.border.withOpacity(0.7)),
+        ),
+        child: Column(
+          crossAxisAlignment:
+              esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (!esMio)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Usuario #${mensaje.remitenteId}',
+                  style: const TextStyle(
+                    color: AppTheme.primarySoft,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            Text(
+              mensaje.contenido,
+              style: TextStyle(
+                color: esMio ? Colors.white : AppTheme.textPrimary,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _contenidoMensajes() {
+    if (_isLoading) {
+      return const Expanded(
+        child: Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.primarySoft,
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Expanded(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Error al cargar chat grupal:\n$_error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_mensajes.isEmpty) {
+      return const Expanded(
+        child: Center(
+          child: Text(
+            'Aún no hay mensajes en este squad.\nEscribe el primero.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    return Expanded(
+      child: RefreshIndicator(
+        onRefresh: _cargarMensajes,
+        child: ListView.builder(
+          reverse: true,
+          padding: const EdgeInsets.all(16),
+          itemCount: _mensajes.length,
+          itemBuilder: (context, index) {
+            return _mensajeBubble(_mensajes[index]);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _inputMensaje() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: const Border(
+          top: BorderSide(color: AppTheme.border),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                style: const TextStyle(color: AppTheme.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Mensaje al squad...',
+                  hintStyle: const TextStyle(color: AppTheme.textSecondary),
+                  filled: true,
+                  fillColor: AppTheme.surfaceAlt,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppTheme.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppTheme.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppTheme.primarySoft),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              onPressed: _isSending ? null : _enviarMensaje,
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+              ),
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bannerSquad() {
+    return Container(
+      width: double.infinity,
+      color: AppTheme.primary.withOpacity(0.12),
+      padding: const EdgeInsets.all(12),
+      child: Text(
+        '${widget.squad.deporte} · ${widget.squad.integrantesTexto}',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: AppTheme.primarySoft,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.textPrimary,
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: AppTheme.primary.withOpacity(0.18),
+              child: const Icon(
+                Icons.groups,
+                color: AppTheme.primarySoft,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.squad.nombre,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            onPressed: _cargarMensajes,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _bannerSquad(),
+          _contenidoMensajes(),
+          _inputMensaje(),
+        ],
+      ),
+    );
+  }
+}
