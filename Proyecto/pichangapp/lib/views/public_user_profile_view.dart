@@ -68,68 +68,134 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
     }
   }
 
-  String _valorTexto(List<String> keys, {String fallback = 'No disponible'}) {
-    final data = _usuario;
-
-    if (data == null) return fallback;
-
-    for (final key in keys) {
-      final value = data[key];
-
-      if (value != null && value.toString().trim().isNotEmpty) {
-        return value.toString().trim();
-      }
-    }
-
-    return fallback;
-  }
-
-  int? _valorInt(List<String> keys) {
+  Map<String, dynamic>? get _profile {
     final data = _usuario;
 
     if (data == null) return null;
 
-    for (final key in keys) {
-      final value = data[key];
+    final profile = data['profile'];
 
-      if (value is int) return value;
-      if (value is num) return value.toInt();
+    if (profile is Map<String, dynamic>) {
+      return profile;
+    }
 
-      final parsed = int.tryParse(value?.toString() ?? '');
-
-      if (parsed != null) return parsed;
+    if (profile is Map) {
+      return Map<String, dynamic>.from(profile);
     }
 
     return null;
   }
 
-  String? _fotoUrl() {
+  Map<String, dynamic>? get _atributosDeportivos {
+    final profile = _profile;
+
+    if (profile == null) return null;
+
+    final atributos = profile['atributosDeportivos'];
+
+    if (atributos is Map<String, dynamic>) {
+      return atributos;
+    }
+
+    if (atributos is Map) {
+      return Map<String, dynamic>.from(atributos);
+    }
+
+    return null;
+  }
+
+  dynamic _valorRaw(List<String> keys) {
     final data = _usuario;
+    final profile = _profile;
+    final atributos = _atributosDeportivos;
 
-    if (data == null) return null;
+    for (final key in keys) {
+      final value = data?[key];
 
-    final value = data['fotoUrl'] ??
-        data['foto_url'] ??
-        data['profileImageUrl'] ??
-        data['imagenPerfil'] ??
-        data['avatarUrl'];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value;
+      }
+    }
 
-    if (value == null || value.toString().trim().isEmpty) {
+    for (final key in keys) {
+      final value = profile?[key];
+
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value;
+      }
+    }
+
+    for (final key in keys) {
+      final value = atributos?[key];
+
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  String _valorTexto(
+    List<String> keys, {
+    String fallback = 'No disponible',
+  }) {
+    final value = _valorRaw(keys);
+
+    if (value == null) return fallback;
+
+    final texto = value.toString().trim();
+
+    if (texto.isEmpty || texto.toLowerCase() == 'null') {
+      return fallback;
+    }
+
+    return texto;
+  }
+
+  int? _valorInt(List<String> keys) {
+    final value = _valorRaw(keys);
+
+    if (value == null) return null;
+
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+
+    return int.tryParse(value.toString());
+  }
+
+  String? _fotoUrl() {
+    final value = _valorRaw([
+      'fotoUrl',
+      'foto_url',
+      'profileImageUrl',
+      'imagenPerfil',
+      'avatarUrl',
+      'foto',
+    ]);
+
+    if (value == null) return null;
+
+    final texto = value.toString().trim();
+
+    if (texto.isEmpty || texto.toLowerCase() == 'null') {
       return null;
     }
 
-    return value.toString().trim();
+    return texto;
   }
 
   String _username() {
-    final raw = _valorTexto(
+    final username = _valorTexto(
       ['username', 'nombreUsuario', 'userName'],
       fallback: '',
     );
 
-    if (raw.isEmpty) return '@usuario${widget.usuarioId}';
+    if (username.isEmpty) {
+      return '@usuario${widget.usuarioId}';
+    }
 
-    return raw.startsWith('@') ? raw : '@$raw';
+    return username.startsWith('@') ? username : '@$username';
   }
 
   String _nombrePrincipal() {
@@ -142,8 +208,15 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
       return nombreCompleto;
     }
 
-    final nombre = _valorTexto(['nombre', 'name'], fallback: '');
-    final apellido = _valorTexto(['apellido', 'lastName'], fallback: '');
+    final nombre = _valorTexto(
+      ['nombre', 'name'],
+      fallback: '',
+    );
+
+    final apellido = _valorTexto(
+      ['apellido', 'lastName'],
+      fallback: '',
+    );
 
     final completo = '$nombre $apellido'.trim();
 
@@ -158,97 +231,183 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
     final edad = _valorInt(['edad', 'age']);
 
     if (edad == null || edad <= 0) {
-      return '';
+      return 'No disponible';
     }
 
     return '$edad años';
   }
 
-  Widget _chip({
-    required IconData icon,
-    required String label,
+  String _alturaTexto() {
+    final altura = _valorInt(['altura', 'heightCm', 'estatura']);
+
+    if (altura == null || altura <= 0) {
+      return 'No disponible';
+    }
+
+    return '$altura cm';
+  }
+
+  String _pesoTexto() {
+    final peso = _valorInt(['peso', 'weightKg']);
+
+    if (peso == null || peso <= 0) {
+      return 'No disponible';
+    }
+
+    return '$peso kg';
+  }
+
+  Widget _seccionTitulo(String titulo) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
+      child: Text(
+        titulo,
+        style: const TextStyle(
+          color: AppTheme.textPrimary,
+          fontSize: 17,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _infoCard({
+    required List<Widget> children,
   }) {
-    if (label.trim().isEmpty || label == 'No disponible') {
+    final visibles = children
+        .where((child) => child.runtimeType != SizedBox)
+        .toList();
+
+    if (visibles.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
-        color: AppTheme.primary.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: AppTheme.primarySoft.withOpacity(0.45),
-        ),
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 15,
-            color: AppTheme.primarySoft,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ],
+      child: Column(
+        children: children,
       ),
     );
   }
 
   Widget _infoTile({
     required IconData icon,
+    required Color iconColor,
     required String title,
     required String value,
+    bool showDivider = true,
   }) {
     if (value.trim().isEmpty || value == 'No disponible') {
       return const SizedBox.shrink();
     }
 
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 23,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          const Divider(
+            height: 1,
+            color: AppTheme.border,
+          ),
+      ],
+    );
+  }
+
+  Widget _headerPerfil() {
+    final foto = _fotoUrl();
+    final nombre = _nombrePrincipal();
+    final username = _username();
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: AppTheme.border),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Icon(
-            icon,
-            color: AppTheme.primarySoft,
+          CircleAvatar(
+            radius: 58,
+            backgroundColor: AppTheme.primary.withOpacity(0.18),
+            backgroundImage: foto != null ? NetworkImage(foto) : null,
+            child: foto == null
+                ? const Icon(
+                    Icons.person,
+                    size: 58,
+                    color: AppTheme.primarySoft,
+                  )
+                : null,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 18),
+          Text(
+            nombre,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            username,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppTheme.primarySoft,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -257,135 +416,112 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
   }
 
   Widget _contenidoPerfil() {
-    final foto = _fotoUrl();
-    final nombre = _nombrePrincipal();
-    final edad = _edadTexto();
-    final titulo = edad.isEmpty ? nombre : '$nombre, $edad';
+    final descripcion = _valorTexto(
+      [
+        'descripcion',
+        'description',
+        'bio',
+        'biografia',
+        'presentacion',
+      ],
+      fallback: 'Jugador amateur de PichangApp',
+    );
 
-    final deporte = _valorTexto(
-      ['deporteFavorito', 'deporte', 'sport'],
-      fallback: '',
+    final deportePrincipal = _valorTexto(
+      [
+        'deportePrincipal',
+        'deporte',
+        'sport',
+        'deporteFavorito',
+      ],
+      fallback: 'No disponible',
     );
 
     final posicion = _valorTexto(
-      ['posicion', 'position'],
-      fallback: '',
+      [
+        'posicion',
+        'position',
+        'rolDeportivo',
+      ],
+      fallback: 'No disponible',
+    );
+
+    final guardia = _valorTexto(
+      [
+        'guardia',
+        'stance',
+      ],
+      fallback: 'No disponible',
     );
 
     final sexo = _valorTexto(
-      ['sexo', 'gender'],
-      fallback: '',
-    );
-
-    final altura = _valorInt(['altura', 'heightCm']);
-    final bio = _valorTexto(
-      ['bio', 'biografia', 'descripcion', 'description'],
-      fallback: '',
-    );
-
-    final nivel = _valorTexto(
-      ['nivel', 'nivelJuego', 'skillLevel'],
-      fallback: '',
-    );
-
-    final ciudad = _valorTexto(
-      ['ciudad', 'comuna', 'ubicacion', 'location'],
-      fallback: '',
+      [
+        'sexo',
+        'gender',
+      ],
+      fallback: 'No disponible',
     );
 
     return RefreshIndicator(
       onRefresh: _cargarUsuario,
       child: ListView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.only(bottom: 28),
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: AppTheme.border),
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 58,
-                  backgroundColor: AppTheme.primary.withOpacity(0.18),
-                  backgroundImage: foto != null ? NetworkImage(foto) : null,
-                  child: foto == null
-                      ? const Icon(
-                          Icons.person,
-                          size: 58,
-                          color: AppTheme.primarySoft,
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  titulo,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _username(),
-                  style: const TextStyle(
-                    color: AppTheme.primarySoft,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                if (bio.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    bio,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 15,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    _chip(icon: Icons.sports_basketball, label: deporte),
-                    _chip(icon: Icons.sports, label: posicion),
-                    _chip(icon: Icons.person, label: sexo),
-                    if (altura != null && altura > 0)
-                      _chip(icon: Icons.height, label: '$altura cm'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _infoTile(
-            icon: Icons.sports_basketball,
-            title: 'Deporte',
-            value: deporte,
-          ),
-          _infoTile(
-            icon: Icons.sports,
-            title: 'Posición',
-            value: posicion,
-          ),
-          _infoTile(
-            icon: Icons.trending_up,
-            title: 'Nivel',
-            value: nivel,
-          ),
-          _infoTile(
-            icon: Icons.location_on,
-            title: 'Ubicación',
-            value: ciudad,
+          _headerPerfil(),
+
+          _seccionTitulo('Perfil Deportivo'),
+          _infoCard(
+            children: [
+              _infoTile(
+                icon: Icons.description_outlined,
+                iconColor: Colors.orangeAccent,
+                title: 'Descripción',
+                value: descripcion,
+              ),
+              _infoTile(
+                icon: Icons.cake_outlined,
+                iconColor: Colors.pinkAccent,
+                title: 'Edad',
+                value: _edadTexto(),
+              ),
+              _infoTile(
+                icon: Icons.sports_basketball,
+                iconColor: Colors.redAccent,
+                title: 'Deporte Principal',
+                value: deportePrincipal,
+              ),
+              _infoTile(
+                icon: Icons.height,
+                iconColor: Colors.cyanAccent,
+                title: 'Altura',
+                value: _alturaTexto(),
+              ),
+              _infoTile(
+                icon: Icons.sports_soccer,
+                iconColor: Colors.amberAccent,
+                title: 'Posición',
+                value: posicion,
+              ),
+              _infoTile(
+                icon: Icons.monitor_weight_outlined,
+                iconColor: Colors.deepOrangeAccent,
+                title: 'Peso',
+                value: _pesoTexto(),
+              ),
+              _infoTile(
+                icon: Icons.sports_mma,
+                iconColor: Colors.lightGreenAccent,
+                title: 'Guardia',
+                value: guardia,
+              ),
+              _infoTile(
+                icon: Icons.person_outline,
+                iconColor: Colors.purpleAccent,
+                title: 'Sexo',
+                value: sexo,
+                showDivider: false,
+              ),
+            ],
           ),
         ],
       ),

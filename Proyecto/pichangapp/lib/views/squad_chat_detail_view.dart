@@ -34,6 +34,7 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
   List<MensajeSquad> _mensajes = [];
 
   final Map<int, String> _nombresUsuarios = {};
+  final Map<int, String?> _fotosUsuarios = {};
 
   Timer? _mensajesTimer;
 
@@ -82,6 +83,10 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
     return _nombresUsuarios[usuarioId] ?? 'Usuario #$usuarioId';
   }
 
+  String? _fotoVisibleUsuario(int usuarioId) {
+    return _fotosUsuarios[usuarioId];
+  }
+
   String _resolverNombreUsuario(Map<String, dynamic>? data, int usuarioId) {
     if (data == null) {
       return 'Usuario #$usuarioId';
@@ -106,8 +111,43 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
     return 'Usuario #$usuarioId';
   }
 
+  String? _resolverFotoUsuario(Map<String, dynamic>? data) {
+    if (data == null) return null;
+
+    dynamic value = data['fotoUrl'] ??
+        data['foto_url'] ??
+        data['profileImageUrl'] ??
+        data['imagenPerfil'] ??
+        data['avatarUrl'] ??
+        data['foto'];
+
+    final profile = data['profile'];
+
+    if ((value == null || value.toString().trim().isEmpty) && profile is Map) {
+      value = profile['fotoUrl'] ??
+          profile['foto_url'] ??
+          profile['profileImageUrl'] ??
+          profile['imagenPerfil'] ??
+          profile['avatarUrl'] ??
+          profile['foto'];
+    }
+
+    if (value == null) return null;
+
+    final texto = value.toString().trim();
+
+    if (texto.isEmpty || texto.toLowerCase() == 'null') {
+      return null;
+    }
+
+    return texto;
+  }
+
   Future<void> _cargarNombreUsuario(int usuarioId) async {
-    if (_nombresUsuarios.containsKey(usuarioId)) return;
+    if (_nombresUsuarios.containsKey(usuarioId) &&
+        _fotosUsuarios.containsKey(usuarioId)) {
+      return;
+    }
 
     try {
       final token = await _storage.read(key: 'jwt_token');
@@ -122,14 +162,16 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
       );
 
       final nombre = _resolverNombreUsuario(data, usuarioId);
+      final foto = _resolverFotoUsuario(data);
 
       if (!mounted) return;
 
       setState(() {
         _nombresUsuarios[usuarioId] = nombre;
+        _fotosUsuarios[usuarioId] = foto;
       });
     } catch (e) {
-      debugPrint('No se pudo cargar nombre de usuario $usuarioId: $e');
+      debugPrint('No se pudo cargar datos de usuario $usuarioId: $e');
     }
   }
 
@@ -344,9 +386,25 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
     return confirmar == true;
   }
 
+  Widget _avatarUsuario(int usuarioId) {
+    final foto = _fotoVisibleUsuario(usuarioId);
+
+    return CircleAvatar(
+      backgroundColor: AppTheme.primary.withOpacity(0.18),
+      backgroundImage: foto != null ? NetworkImage(foto) : null,
+      child: foto == null
+          ? const Icon(
+              Icons.person,
+              color: AppTheme.primarySoft,
+            )
+          : null,
+    );
+  }
+
   Future<void> _mostrarParticipantes() async {
     List<SquadMiembro> miembros = [];
     bool cargando = true;
+    bool cargaIniciada = false;
     bool expulsando = false;
     String? error;
 
@@ -381,7 +439,8 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
               }
             }
 
-            if (cargando && miembros.isEmpty && error == null) {
+            if (!cargaIniciada) {
+              cargaIniciada = true;
               Future.microtask(cargar);
             }
 
@@ -464,14 +523,7 @@ class _SquadChatDetailViewState extends State<SquadChatDetailView> {
                                   Navigator.pop(context);
                                   _abrirPerfilUsuario(miembro.usuarioId);
                                 },
-                                leading: CircleAvatar(
-                                  backgroundColor:
-                                      AppTheme.primary.withOpacity(0.18),
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: AppTheme.primarySoft,
-                                  ),
-                                ),
+                                leading: _avatarUsuario(miembro.usuarioId),
                                 title: Text(
                                   nombre,
                                   style: const TextStyle(
